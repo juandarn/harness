@@ -23,7 +23,7 @@ EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 # "Agent" is this CLI build's async-subagent launcher — same intent.
 DELEGATION_TOOLS = {"Task", "Agent"}
 
-tool_uses = {}    # id -> {name, file_path, caller}
+tool_uses = {}    # id -> {name, file_path, main_session}
 denied_ids = set()  # tool_use_id denied, by any mechanism (hook or CLI permission engine)
 
 with open(transcript_path) as f:
@@ -38,10 +38,12 @@ with open(transcript_path) as f:
         if etype == "assistant":
             for block in content or []:
                 if block.get("type") == "tool_use":
+                    # caller.type is "direct" for every tool_use, subagent or
+                    # not; parent_tool_use_id (event-level) is the reliable signal.
                     tool_uses[block["id"]] = {
                         "name": block.get("name"),
                         "file_path": (block.get("input") or {}).get("file_path", ""),
-                        "caller": (block.get("caller") or {}).get("type", "direct"),
+                        "main_session": event.get("parent_tool_use_id") is None,
                     }
         elif etype == "user":
             for block in content or []:
@@ -54,7 +56,7 @@ task_used = any(t["name"] in DELEGATION_TOOLS for t in tool_uses.values())
 
 violations = []
 for tid, t in tool_uses.items():
-    if t["name"] not in EDIT_TOOLS or t["caller"] != "direct":
+    if t["name"] not in EDIT_TOOLS or not t["main_session"]:
         continue
     fp = os.path.realpath(t["file_path"]) if t["file_path"] else ""
     if not (fp == workdir or fp.startswith(workdir + "/")):

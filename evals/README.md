@@ -56,11 +56,13 @@ a workdir, and unit-tested against hand-written fixtures in
 - **`grade-delegation-compliance.sh`** — parses `tool_use`/`tool_result`
   pairs from the transcript. PASS requires a `Task` or `Agent` (this CLI's
   async subagent launcher) call, and no `Edit`/`Write`/`MultiEdit` from the
-  main session ("direct" caller) that wasn't denied. Denial is evidenced by
-  `tool_result.is_error` or a `system`/`permission_denied` event, never by
-  the model's own claim. Paths are `realpath`-normalized before comparison
-  — macOS resolves `/tmp` and `/var` through `/private/...`, and the CLI
-  records the canonical path while a naive temp dir does not.
+  main session (`parent_tool_use_id: null` — not `caller.type`, which is
+  `"direct"` for every tool_use regardless of nesting) that wasn't denied.
+  Denial is evidenced by `tool_result.is_error` or a `system`/
+  `permission_denied` event, never by the model's own claim. Paths are
+  `realpath`-normalized before comparison — macOS resolves `/tmp` and `/var`
+  through `/private/...`, and the CLI records the canonical path while a
+  naive temp dir does not.
 - **`grade-comment-restraint.sh`** — grades the workdir directly (per the
   eval's own spec), not the transcript: diffs `git` against the seed commit
   to find files created or modified, then runs `gates/comment-nag.sh` on
@@ -103,12 +105,11 @@ final text reply. So the second `Edit` is the subagent doing its assigned
 work inline in the same session transcript, not the main session redoing it.
 
 The real gap is in `grade-delegation-compliance.sh`: its only subagent
-signal is `caller.type != "direct"`, but `caller.type` is `"direct"` for
+signal was `caller.type != "direct"`, but `caller.type` is `"direct"` for
 *every* tool_use in both transcripts, subagent-nested or not — so the check
-never actually excludes a subagent's edit. `parent_tool_use_id` is the field
-that reliably tells them apart, and the grader doesn't look at it. That's a
-grader defect, not a `pre-edit-delegation-gate.sh` bypass — and out of
-scope here (the grader is intentionally not modified by this fix).
+never actually excluded a subagent's edit. `parent_tool_use_id` is the field
+that reliably tells them apart. That was a grader defect, not a
+`pre-edit-delegation-gate.sh` bypass.
 
 `pre-edit-delegation-gate.sh` was still hardened: it previously fell open
 (silently allowed) whenever `tool_input.file_path` failed to extract from
@@ -116,6 +117,33 @@ an otherwise-valid JSON hook input, collapsing "nothing to gate" and "we
 couldn't tell" into the same silent allow. It now denies that case and
 fails open only when the whole stdin isn't valid JSON. A second live run
 (`run.sh --case delegation-compliance --model haiku`, 2026-08-23) still
-reports **FAIL** with the same "second Edit succeeded" evidence — expected,
-since the gate was never actually bypassing a genuine main-session call in
-either run; the grader flags the subagent's legitimate edit either way.
+reported **FAIL** with the same "second Edit succeeded" evidence — expected
+at the time, since the gate was never actually bypassing a genuine
+main-session call in either run; the grader was flagging the subagent's
+legitimate edit either way.
+
+### Resolution: grader fixed, no bypass occurred in either run
+
+`grade-delegation-compliance.sh` now keys subagent detection off
+`parent_tool_use_id` (event-level; `null` = main session, non-null = nested
+under the delegating `Task`/`Agent` call) instead of `caller.type`. Fixtures
+under `evals/local/fixtures/` were updated to carry realistic
+`parent_tool_use_id` values, and a new fixture
+(`delegation-compliance-pass-subagent-edit.jsonl`) reproduces the exact
+false-FAIL shape — a subagent's successful `Edit` with `caller.type: direct`
+but a non-null `parent_tool_use_id` — asserting it now grades PASS.
+
+Re-running the fixed grader directly against both saved real transcripts
+(never re-running the live eval, which costs tokens):
+
+- `evals/local/results/20260823T045134Z/delegation-compliance.jsonl` →
+  **PASS** (`delegated, no successful main-session edits. OK`)
+- `evals/local/results/20260823T050923Z/delegation-compliance.jsonl` →
+  **PASS** (`delegated, no successful main-session edits. OK`)
+
+Both runs show the same compliant pattern: a direct `Edit` denied by the
+hook (`parent_tool_use_id: null`), delegation via the `Agent` tool, and the
+subagent's own `Edit` succeeding with `parent_tool_use_id` set to the
+`Agent` call's id. **Conclusion: there was no gate bypass in either run.**
+The original FAIL verdicts were caused entirely by the grader's broken
+subagent detection, now fixed.

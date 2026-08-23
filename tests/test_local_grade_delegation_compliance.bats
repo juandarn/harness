@@ -34,3 +34,9 @@ setup() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"succeeded from the main session"* ]]
 }
+
+@test "passes when a subagent's own Edit succeeds (caller.type is always direct, parent_tool_use_id is not)" {
+  run "$GRADER" "$FIXTURES/delegation-compliance-pass-subagent-edit.jsonl" "$WORKDIR"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"delegated"* ]]
+}
