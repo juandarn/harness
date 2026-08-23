@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "harness",
+  "owner": {
+    "name": "juandarn"
+  },
+  "description": "Personal marketplace for the harness plugin.",
+  "plugins": [
+    {
+      "name": "harness",
+      "description": "Enforcement layer for AI-assisted development: hooks, gates, and evals that make the workflow mandatory, not advisory",
+      "author": "juandarn",
+      "source": "./plugin/claude-code",
+      "category": "workflow"
+    }
+  ]
+}
