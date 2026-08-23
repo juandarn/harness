@@ -2,6 +2,7 @@
   "gates": [
     { "name": "tests", "run": "make test", "severity": "block" },
     { "name": "review-evidence", "run": "test -s .harness/review-report.md", "severity": "block" },
-    { "name": "live-test-evidence", "run": "test -s .harness/live-test.md", "severity": "block" }
+    { "name": "live-test-evidence", "run": "test -s .harness/live-test.md", "severity": "block" },
+    { "name": "design", "run": "bash ${CLAUDE_PLUGIN_ROOT}/gates/design-gate.sh .", "severity": "block" }
   ]
 }

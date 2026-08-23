@@ -39,6 +39,10 @@ and forces every code change through a reviewable, delegated step.
   evidence, live-test evidence).
 - **SDD artifact gate**: still planned — will block `apply` from starting
   without a spec/design/tasks artifact present.
+- **Design gate** (`gates/design-gate.sh`, opt-in via `harness.gates.json`):
+  runs Impeccable's deterministic detector rules (no LLM, no API key) over
+  frontend files and blocks on findings. Fails open with an install notice
+  when impeccable isn't available, so repos without it stay unaffected.
 
 ## 5. Composition, not reimplementation
 
