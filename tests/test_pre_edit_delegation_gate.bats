@@ -52,8 +52,23 @@ teardown() {
   [ -z "$output" ]
 }
 
-@test "fails open when tool_input.file_path is missing" {
+@test "denies when JSON is valid but tool_input.file_path is missing" {
   run bash -c "printf '%s' '{}' | \"$HOOK\""
   [ "$status" -eq 0 ]
-  [ -z "$output" ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')" = "deny" ]
+}
+
+# Defensive: parent_tool_use_id/tool_use_id alone must never substitute for
+# agent_id — see evals/local/results/20260823T045134Z (README "Live proof").
+@test "denies an Edit carrying parent_tool_use_id/tool_use_id but no agent_id" {
+  INPUT="$(jq -n --arg fp "$FILE" '{
+    session_id: "0eb0c9e5-344e-4ccc-bd85-c2e77ea99de7",
+    parent_tool_use_id: "toolu_01Az1kczxBd3N2TJbQkqgSH4",
+    tool_use_id: "toolu_01GUUq82KJqoixBb2pWdMXkb",
+    tool_name: "Edit",
+    tool_input: {file_path: $fp, old_string: "x", new_string: "y", replace_all: false}
+  }')"
+  run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')" = "deny" ]
 }

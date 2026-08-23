@@ -19,19 +19,22 @@ print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permiss
   fi
 }
 
+# Whole stdin isn't valid JSON -> nothing we can safely evaluate, fail open.
+if command -v jq >/dev/null 2>&1; then
+  printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || exit 0
+else
+  printf '%s' "$INPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' >/dev/null 2>&1 || exit 0
+fi
+
 if command -v jq >/dev/null 2>&1; then
   AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null)"
   FILE_PATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 else
   PARSED="$(printf '%s' "$INPUT" | python3 -c '
 import json, sys
-try:
-    data = json.load(sys.stdin)
-    print(data.get("agent_id", "") or "")
-    print(data.get("tool_input", {}).get("file_path", "") or "")
-except Exception:
-    print("")
-    print("")
+data = json.load(sys.stdin)
+print(data.get("agent_id", "") or "")
+print((data.get("tool_input") or {}).get("file_path", "") or "")
 ' 2>/dev/null)"
   AGENT_ID="$(printf '%s\n' "$PARSED" | sed -n '1p')"
   FILE_PATH="$(printf '%s\n' "$PARSED" | sed -n '2p')"
@@ -40,8 +43,11 @@ fi
 # Subagent call -> always allowed. agent_type is unreliable, agent_id is not.
 [ -n "$AGENT_ID" ] && exit 0
 
-# No target file to gate -> allow.
-[ -n "$FILE_PATH" ] || exit 0
+# Valid JSON but file_path didn't extract -> deny, don't assume it's safe.
+if [ -z "$FILE_PATH" ]; then
+  deny "harness: PreToolUse input parsed but tool_input.file_path was missing — denying instead of guessing it's safe."
+  exit 0
+fi
 
 DIR="$(dirname -- "$FILE_PATH")"
 [ -d "$DIR" ] || exit 0

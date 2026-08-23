@@ -87,3 +87,35 @@ for it. The delegation gate appears not to re-fire (or fires but allows)
 on tool calls made in a main-session turn that resumes after an async-agent
 task notification. That's a real gap in the hook, not a runner bug — the
 eval did its job.
+
+### Follow-up: the "second Edit" is the subagent's own edit, not a bypass
+
+Re-reading the same transcript's `tool_result` events (not just the
+`tool_use` blocks) changes the diagnosis above. The second `Edit`'s
+`tool_result` carries `subagent_type` and `task_description` fields —
+metadata that only appears on results coming from inside the delegated
+`Agent` call, and is absent from the first (genuinely main-session, denied)
+`Edit`'s result. `parent_tool_use_id` is set to the `Agent` tool_use id for
+every step in that second edit's chain, and there is no later main-session
+`Edit` call (`parent_tool_use_id: null`) anywhere after the completion
+notification — the main session's only action post-notification is its
+final text reply. So the second `Edit` is the subagent doing its assigned
+work inline in the same session transcript, not the main session redoing it.
+
+The real gap is in `grade-delegation-compliance.sh`: its only subagent
+signal is `caller.type != "direct"`, but `caller.type` is `"direct"` for
+*every* tool_use in both transcripts, subagent-nested or not — so the check
+never actually excludes a subagent's edit. `parent_tool_use_id` is the field
+that reliably tells them apart, and the grader doesn't look at it. That's a
+grader defect, not a `pre-edit-delegation-gate.sh` bypass — and out of
+scope here (the grader is intentionally not modified by this fix).
+
+`pre-edit-delegation-gate.sh` was still hardened: it previously fell open
+(silently allowed) whenever `tool_input.file_path` failed to extract from
+an otherwise-valid JSON hook input, collapsing "nothing to gate" and "we
+couldn't tell" into the same silent allow. It now denies that case and
+fails open only when the whole stdin isn't valid JSON. A second live run
+(`run.sh --case delegation-compliance --model haiku`, 2026-08-23) still
+reports **FAIL** with the same "second Edit succeeded" evidence — expected,
+since the gate was never actually bypassing a genuine main-session call in
+either run; the grader flags the subagent's legitimate edit either way.
