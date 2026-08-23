@@ -20,18 +20,29 @@ auto-update is how you get changes.
 
 ## Status
 
-Fase 2 of 6:
+Fase 4 of 6:
 
 1. Skeleton
-2. **Hooks** ← you are here
+2. Hooks
 3. Skills
-4. Knowledge layer
-5. Evals
+4. **Evals** ← you are here
+5. Knowledge layer
 6. Dogfooding
 
-Implemented: PreToolUse delegation gate, PostToolUse comment nag, and the
-Stop hook checklist (opt-in via `harness.gates.json`). Skills and evals are
-not implemented yet.
+Implemented: PreToolUse delegation gate, PostToolUse comment nag, the Stop
+hook checklist (opt-in via `harness.gates.json`), three shipped skills, and
+eval suite structure (`claude plugin eval`, early access — not yet runnable
+on this account). Remaining: knowledge-layer repos (code-graph, repo-graph)
+and dogfooding.
+
+## Skills
+
+- **`harness-pipeline`** — the core enforced protocol: SDD → strict TDD →
+  subagent-only implementation → review gate → live-test → PR.
+- **`live-test`** — runs the service in Docker against the real deploy
+  shape and writes `.harness/live-test.md` evidence.
+- **`review-gate`** — launches fresh-context transversal review via
+  subagents and writes `.harness/review-report.md` evidence.
 
 ## Docs
 
