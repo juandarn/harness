@@ -1,0 +1,4 @@
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_401","name":"Write","input":{"file_path":"/tmp/eval-workdir/src/slugify.py","content":"def slugify(text): return text.lower().replace(' ', '-')"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_401","content":"created","is_error":false}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_402","name":"Bash","input":{"command":"pytest src/test_slugify.py"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_402","content":"1 passed","is_error":false}]}}
