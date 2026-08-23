@@ -20,16 +20,18 @@ auto-update is how you get changes.
 
 ## Status
 
-Skeleton. Fase 1 of 6:
+Fase 2 of 6:
 
-1. **Skeleton** ← you are here
-2. Hooks
+1. Skeleton
+2. **Hooks** ← you are here
 3. Skills
 4. Knowledge layer
 5. Evals
 6. Dogfooding
 
-No hooks, skills, or evals are implemented yet.
+Implemented: PreToolUse delegation gate, PostToolUse comment nag, and the
+Stop hook checklist (opt-in via `harness.gates.json`). Skills and evals are
+not implemented yet.
 
 ## Docs
 

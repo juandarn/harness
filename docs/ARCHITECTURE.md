@@ -26,18 +26,19 @@ delegated to Sonnet subagents; purely mechanical work (renames, boilerplate,
 config copies) may go to Haiku. This keeps the orchestrator's context clean
 and forces every code change through a reviewable, delegated step.
 
-## 4. Planned hooks (Fase 2)
+## 4. Hooks (Fase 2)
 
-- **PreToolUse (Edit/Write, main session)**: blocks direct code edits in the
-  orchestrator session, forcing delegation to a subagent.
-- **SDD artifact gate**: blocks `apply` from starting without a spec/design/
-  tasks artifact present.
-- **Stop hook checklist**: blocks session end unless tests are green, the
-  review gate ran, and live-test evidence exists.
+- **PreToolUse delegation gate** (Edit/Write/MultiEdit/NotebookEdit, main
+  session): denies direct code edits in the orchestrator session, forcing
+  delegation to a subagent. Subagent calls and non-git targets pass through.
 - **PostToolUse comment nag**: flags diffs with more than 3 consecutive
   comment lines and returns a short correction message; the model trims it.
-
-None of these exist yet — this is the skeleton phase (Fase 1).
+- **Stop hook checklist**: runs `harness.gates.json` (opt-in per repo) via
+  `gates/run_gates.py` and blocks session end when a blocking gate fails.
+  See `docs/examples/harness.gates.json` for a sample (tests, review
+  evidence, live-test evidence).
+- **SDD artifact gate**: still planned — will block `apply` from starting
+  without a spec/design/tasks artifact present.
 
 ## 5. Composition, not reimplementation
 
