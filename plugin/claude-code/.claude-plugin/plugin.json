@@ -1,5 +1,7 @@
 {
   "name": "harness",
   "description": "Enforcement layer for AI-assisted development: hooks, gates, and evals that make the workflow mandatory, not advisory",
-  "author": "juandarn"
+  "author": {
+    "name": "juandarn"
+  }
 }
