@@ -23,7 +23,7 @@ teardown() {
   INPUT="$(jq -n --arg fp "$FILE" '{tool_input: {file_path: $fp}}')"
   run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
   [ "$status" -eq 0 ]
-  EXPECTED='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"harness: the main session does not edit code — delegate to a subagent (code work → Sonnet; mechanical edits → Haiku). This repo enforces orchestrator-only mode."}}'
+  EXPECTED='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"harness: the main session does not edit code — delegate to a subagent (Sonnet). This repo enforces orchestrator-only mode."}}'
   [ "$(echo "$output" | jq -c .)" = "$(echo "$EXPECTED" | jq -c .)" ]
 }
 

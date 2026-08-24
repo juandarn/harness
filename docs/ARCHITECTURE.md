@@ -23,7 +23,7 @@ live test in Docker replicating the deploy environment → PR.
 
 The orchestrator model never writes code directly. Code implementation is
 delegated to Sonnet subagents; purely mechanical work (renames, boilerplate,
-config copies) may go to Haiku. This keeps the orchestrator's context clean
+config copies) also goes to Sonnet. This keeps the orchestrator's context clean
 and forces every code change through a reviewable, delegated step.
 
 ## 4. Hooks (Fase 2)

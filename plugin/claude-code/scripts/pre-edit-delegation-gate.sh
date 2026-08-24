@@ -61,5 +61,5 @@ REPO_ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null)"
 # Per-repo opt-out, meant to be gitignored.
 [ -f "$REPO_ROOT/.harness-inline-ok" ] && exit 0
 
-deny "harness: the main session does not edit code — delegate to a subagent (code work → Sonnet; mechanical edits → Haiku). This repo enforces orchestrator-only mode."
+deny "harness: the main session does not edit code — delegate to a subagent (Sonnet). This repo enforces orchestrator-only mode."
 exit 0

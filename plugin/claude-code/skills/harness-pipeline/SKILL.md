@@ -19,7 +19,7 @@ the hooks by surprise.
    denies `Edit`/`Write`/`MultiEdit`/`NotebookEdit` from the main session in
    any git repo. **When denied, do not retry the same call.** Launch a
    subagent instead: code work goes to a Sonnet subagent, purely mechanical
-   edits (renames, boilerplate, config copies) go to a Haiku subagent.
+   edits (renames, boilerplate, config copies) also go to a Sonnet subagent.
 4. **Transversal review gate** — fresh-context review before PR. See the
    `review-gate` skill.
 5. **Docker live-test** — run the real service before PR, not just unit
