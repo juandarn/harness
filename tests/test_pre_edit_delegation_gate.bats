@@ -46,6 +46,13 @@ teardown() {
   [ -z "$output" ]
 }
 
+@test "allows edits when HARNESS_INLINE_OK=1 is set" {
+  INPUT="$(jq -n --arg fp "$FILE" '{tool_input: {file_path: $fp}}')"
+  run bash -c "printf '%s' '$INPUT' | HARNESS_INLINE_OK=1 \"$HOOK\""
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 @test "fails open on malformed stdin" {
   run bash -c "printf 'not json' | \"$HOOK\""
   [ "$status" -eq 0 ]

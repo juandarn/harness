@@ -40,6 +40,9 @@ print((data.get("tool_input") or {}).get("file_path", "") or "")
   FILE_PATH="$(printf '%s\n' "$PARSED" | sed -n '2p')"
 fi
 
+# Global opt-out: inline editing costs less than a subagent reloading the full system prompt.
+[ "${HARNESS_INLINE_OK:-}" = "1" ] && exit 0
+
 # Subagent call -> always allowed. agent_type is unreliable, agent_id is not.
 [ -n "$AGENT_ID" ] && exit 0
 
