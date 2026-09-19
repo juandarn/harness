@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
+  unset HARNESS_INLINE_OK
   HOOK="$BATS_TEST_DIRNAME/../plugin/claude-code/scripts/pre-edit-delegation-gate.sh"
   REPO="$(mktemp -d)"
   git -C "$REPO" init -q

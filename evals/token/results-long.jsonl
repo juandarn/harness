@@ -1,0 +1,6 @@
+{"arm": "new-gate", "task": "long", "rep": 0, "pass": true, "fixed": 14, "input": 1849483, "weighted": 308640.0, "requests": 44, "max_ctx": 56198, "compactions": 0}
+{"arm": "old", "task": "long", "rep": 0, "pass": true, "fixed": 14, "input": 3647521, "weighted": 647294.3999999999, "requests": 44, "max_ctx": 139322, "compactions": 0}
+{"arm": "new-gate", "task": "long", "rep": 1, "pass": true, "fixed": 14, "input": 1846493, "weighted": 310064.49999999994, "requests": 44, "max_ctx": 56613, "compactions": 0}
+{"arm": "old", "task": "long", "rep": 1, "pass": true, "fixed": 14, "input": 3646283, "weighted": 649942.5000000001, "requests": 44, "max_ctx": 139723, "compactions": 0}
+{"arm": "compact-only", "task": "long", "rep": 0, "pass": true, "fixed": 14, "input": 6917582, "weighted": 1524868.2999999996, "requests": 121, "max_ctx": 146314, "compactions": 0}
+{"arm": "compact-only", "task": "long", "rep": 1, "pass": true, "fixed": 14, "input": 7046886, "weighted": 1552411.3999999994, "requests": 124, "max_ctx": 146862, "compactions": 0}
