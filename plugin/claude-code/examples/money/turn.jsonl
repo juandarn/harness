@@ -1,0 +1,4 @@
+{"tool":"Write","path":"examples/money/test_money.py"}
+{"tool":"Bash","cmd":"pytest -q","exit":2}
+{"tool":"Write","path":"examples/money/money.py"}
+{"tool":"Bash","cmd":"pytest -q","exit":0}

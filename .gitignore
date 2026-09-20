@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 evals/local/results/
+.hypothesis/
+.harness/

@@ -29,11 +29,18 @@ Fase 4 of 6:
 5. Knowledge layer
 6. Dogfooding
 
-Implemented: PreToolUse delegation gate, PostToolUse comment nag, the Stop
-hook checklist (opt-in via `harness.gates.json`), three shipped skills, and
+Implemented: blocking, fail-closed hooks (commit/push gate, TDD order gate,
+SDD artifact gate, delegation gate, read gate, comment nag, Stop checklist
+with default gates and a 3-block cap), three shipped skills, and
 eval suite structure (`claude plugin eval`, early access — not yet runnable
 on this account). Remaining: knowledge-layer repos (code-graph, repo-graph)
 and dogfooding.
+
+## Requirements
+
+`jq` and `python3` must be installed: the hooks block instead of skipping when
+either is missing. The default `quality` gate for Python repos also needs
+`ruff`, `coverage` and `bandit` (`plugin/claude-code/bin/doctor.sh`).
 
 ## Skills
 

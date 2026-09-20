@@ -1,0 +1,25 @@
+# Pinned toolchain. Determinism means "same machine gives same verdict" — an
+# unpinned tool that is v4 here and v5 in CI silently changes the DRY threshold.
+adapters:
+  go:
+    golangci-lint: 1.64.0
+    gosec: 2.21.0
+  ts:
+    eslint: 9.17.0
+    prettier: 3.4.0
+    vitest: 2.1.0
+  py:
+    ruff: 0.8.0
+    pytest: 8.3.0
+    coverage: 7.6.0
+    bandit: 1.8.0
+  kotlin:
+    ktlint: 1.5.0
+    detekt: 1.23.0
+  shared:
+    jscpd: 4.0.5
+    semgrep: 1.96.0
+
+thresholds:
+  coverage_min: 80
+  duplication_max_pct: 3

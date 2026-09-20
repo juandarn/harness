@@ -1,0 +1,11 @@
+{
+  "gates": [
+    { "name": "format", "run": "ruff format --check .", "severity": "block" },
+    { "name": "lint", "run": "ruff check .", "severity": "block" },
+    { "name": "test", "run": "pytest -q", "severity": "block" },
+    { "name": "duplication", "run": "python3 $HARNESS_ROOT/adapters/py/dup.py . 3", "severity": "block" },
+    { "name": "complexity", "run": "python3 $HARNESS_ROOT/adapters/py/rubric.py . 10", "severity": "block" },
+    { "name": "mutation", "run": "python3 $HARNESS_ROOT/adapters/py/mutate.py money.py . 80", "severity": "block" },
+    { "name": "sonarqube (plug your own tool)", "run": "command -v sonar-scanner >/dev/null", "severity": "warn" }
+  ]
+}

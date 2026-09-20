@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
-  export HARNESS_READ_GATE=1
+  unset HARNESS_READ_GATE
   HOOK="$BATS_TEST_DIRNAME/../plugin/claude-code/scripts/pre-read-range-gate.sh"
   DIR="$(mktemp -d)"
   BIG="$DIR/big.py"; seq 1 500 > "$BIG"
@@ -37,14 +37,16 @@ read_input() { jq -n --arg fp "$1" --argjson extra "${2:-{\}}" '{tool_input: ({f
   [ -z "$output" ]
 }
 
-@test "is off unless HARNESS_READ_GATE=1" {
+@test "is on by default and only HARNESS_READ_GATE=0 turns it off" {
+  run bash -c "$(declare -f read_input); read_input '$BIG' | '$HOOK'"
+  [ "$(echo "$output" | jq -r .hookSpecificOutput.permissionDecision)" = "deny" ]
   run bash -c "$(declare -f read_input); read_input '$BIG' | HARNESS_READ_GATE=0 '$HOOK'"
   [ -z "$output" ]
 }
 
-@test "skips images and missing files, fails open on bad JSON" {
+@test "skips images and missing files, fails closed on bad JSON" {
   cp "$BIG" "$DIR/x.png"
   run bash -c "$(declare -f read_input); read_input '$DIR/x.png' | '$HOOK'"; [ -z "$output" ]
   run bash -c "$(declare -f read_input); read_input '$DIR/nope.py' | '$HOOK'"; [ -z "$output" ]
-  run bash -c "printf 'not json' | '$HOOK'"; [ "$status" -eq 0 ]; [ -z "$output" ]
+  run bash -c "printf 'not json' | '$HOOK'"; [ "$status" -eq 2 ]
 }

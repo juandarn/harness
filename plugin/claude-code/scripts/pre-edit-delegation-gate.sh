@@ -11,19 +11,24 @@ deny() {
   if command -v jq >/dev/null 2>&1; then
     jq -n --arg reason "$reason" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
-  else
+  elif command -v python3 >/dev/null 2>&1; then
     python3 -c '
 import json, sys
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": sys.argv[1]}}))
 ' "$reason"
+  else
+    printf '%s\n' "$reason" >&2
+    exit 2
   fi
 }
 
-# Whole stdin isn't valid JSON -> nothing we can safely evaluate, fail open.
+# Whole stdin isn't valid JSON -> nothing can be evaluated safely, fail closed.
 if command -v jq >/dev/null 2>&1; then
-  printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || exit 0
+  printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || { deny "harness: PreToolUse input is not valid JSON — denying instead of guessing it is safe."; exit 0; }
+elif command -v python3 >/dev/null 2>&1; then
+  printf '%s' "$INPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' >/dev/null 2>&1 || { deny "harness: PreToolUse input is not valid JSON — denying instead of guessing it is safe."; exit 0; }
 else
-  printf '%s' "$INPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' >/dev/null 2>&1 || exit 0
+  deny "harness: neither jq nor python3 is installed — denying edits instead of skipping the gate."
 fi
 
 if command -v jq >/dev/null 2>&1; then
@@ -39,9 +44,6 @@ print((data.get("tool_input") or {}).get("file_path", "") or "")
   AGENT_ID="$(printf '%s\n' "$PARSED" | sed -n '1p')"
   FILE_PATH="$(printf '%s\n' "$PARSED" | sed -n '2p')"
 fi
-
-# Global opt-out: inline editing costs less than a subagent reloading the full system prompt.
-[ "${HARNESS_INLINE_OK:-}" = "1" ] && exit 0
 
 # Subagent call -> always allowed. agent_type is unreliable, agent_id is not.
 [ -n "$AGENT_ID" ] && exit 0

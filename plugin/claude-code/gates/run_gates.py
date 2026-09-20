@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # usage: run_gates.py <gates.json> [cwd]
-# Ported from rigor-harness gates/run_gates.py (unchanged logic).
+# Gate commands may reference $HARNESS_ROOT / ${CLAUDE_PLUGIN_ROOT}; both default to the plugin root.
 import json
 import os
 import subprocess
 import sys
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.environ.setdefault("HARNESS_ROOT", _ROOT)
+os.environ.setdefault("CLAUDE_PLUGIN_ROOT", _ROOT)
 
 def run_gate(gate, cwd):
     cmd = os.path.expandvars(gate["run"])

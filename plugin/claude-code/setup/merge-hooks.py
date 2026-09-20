@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # usage: merge-hooks.py <settings.json> <hooks-fragment.json> <plugin-root>
-# Ported from rigor-harness setup/merge-hooks.py; $KEEL_ROOT renamed to $PLUGIN_ROOT.
+# Merges the plugin's hook entries into a settings.json, substituting $PLUGIN_ROOT with <plugin-root>.
 import json
 import os
 import sys

@@ -1,0 +1,7 @@
+{
+  "gates": [
+    { "name": "tests", "run": "bash \"$HARNESS_ROOT/gates/default-tests.sh\"", "severity": "block" },
+    { "name": "comment-restraint", "run": "bash \"$HARNESS_ROOT/gates/default-comments.sh\"", "severity": "block" },
+    { "name": "quality", "run": "bash \"$HARNESS_ROOT/gates/default-quality.sh\"", "severity": "block" }
+  ]
+}

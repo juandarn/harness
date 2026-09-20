@@ -20,7 +20,7 @@ EOF
   [ "$status" -eq 0 ]
 }
 
-@test "flags a run of more than 3 consecutive comments after line 15" {
+@test "flags a run of 4 consecutive comments" {
   {
     for i in $(seq 1 16); do echo "x = $i"; done
     echo "# one"
@@ -34,7 +34,7 @@ EOF
   [[ "$output" == *"comment block of 4 lines"* ]]
 }
 
-@test "exempts a long comment run starting in the first 15 lines" {
+@test "flags a 4-line comment run at the top of the file (single rule, no header exemption)" {
   {
     echo "# one"
     echo "# two"
@@ -43,7 +43,22 @@ EOF
     echo "y = 1"
   } > "$FILE"
   run "$GATE" "$FILE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"comment block of 4 lines"* ]]
+}
+
+@test "allows 1-3 line comment runs" {
+  printf '# one\nx = 1\n# a\n# b\ny = 2\n# a\n# b\n# c\nz = 3\n' > "$FILE"
+  run "$GATE" "$FILE"
   [ "$status" -eq 0 ]
+}
+
+@test "the shebang line does not count towards a comment run" {
+  SH_FILE="$(mktemp /tmp/comment-nag-test.XXXXXX.sh)"
+  printf '#!/usr/bin/env bash\n# one\n# two\n# three\necho hi\n' > "$SH_FILE"
+  run "$GATE" "$SH_FILE"
+  [ "$status" -eq 0 ]
+  rm -f "$SH_FILE"
 }
 
 @test "skips non-code files" {

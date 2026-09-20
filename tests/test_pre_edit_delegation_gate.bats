@@ -1,7 +1,6 @@
 #!/usr/bin/env bats
 
 setup() {
-  unset HARNESS_INLINE_OK
   HOOK="$BATS_TEST_DIRNAME/../plugin/claude-code/scripts/pre-edit-delegation-gate.sh"
   REPO="$(mktemp -d)"
   git -C "$REPO" init -q
@@ -47,17 +46,17 @@ teardown() {
   [ -z "$output" ]
 }
 
-@test "allows edits when HARNESS_INLINE_OK=1 is set" {
+@test "the HARNESS_INLINE_OK env var is not an opt-out (only the per-repo file is)" {
   INPUT="$(jq -n --arg fp "$FILE" '{tool_input: {file_path: $fp}}')"
   run bash -c "printf '%s' '$INPUT' | HARNESS_INLINE_OK=1 \"$HOOK\""
   [ "$status" -eq 0 ]
-  [ -z "$output" ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')" = "deny" ]
 }
 
-@test "fails open on malformed stdin" {
+@test "fails closed on malformed stdin" {
   run bash -c "printf 'not json' | \"$HOOK\""
   [ "$status" -eq 0 ]
-  [ -z "$output" ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')" = "deny" ]
 }
 
 @test "denies when JSON is valid but tool_input.file_path is missing" {

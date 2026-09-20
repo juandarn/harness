@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # usage: comment-nag.sh <file>
-# Flags runs of more than 3 consecutive full-line comments in code files.
-# New gate (not ported from rigor-harness).
+# Single rule: 1-2 line comments are fine, 4+ consecutive full-line comments fail (shebang excluded).
 set -euo pipefail
 
 FILE="${1:?usage: comment-nag.sh <file>}"
@@ -23,15 +22,14 @@ function is_comment(line,    t) {
   if (t ~ /^\/\*.*\*\/[ \t]*$/) return 1
   return 0
 }
-# Header/license runs starting in the first 15 lines are exempt.
 function flag(start, len) {
-  if (start <= 15) return
-  if (len > 3) {
+  if (len >= 4) {
     printf "%s:%d: comment block of %d lines (max 3) — trim to 1-2 lines stating only the non-obvious constraint\n", file, start, len
     violation = 1
   }
 }
 {
+  if (NR == 1 && $0 ~ /^#!/) next
   if (is_comment($0)) {
     if (run_len == 0) run_start = NR
     run_len++

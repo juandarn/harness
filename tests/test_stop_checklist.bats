@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
+  unset CLAUDE_PROJECT_DIR
   HOOK="$BATS_TEST_DIRNAME/../plugin/claude-code/scripts/stop-checklist.sh"
   PROJECT="$(mktemp -d)"
 }
@@ -16,11 +17,51 @@ teardown() {
   [ -z "$output" ]
 }
 
-@test "silent when stop_hook_active is true (loop protection)" {
-  INPUT="$(jq -n --arg cwd "$PROJECT" '{cwd: $cwd, stop_hook_active: true}')"
+@test "silent when no harness.gates.json exists and the default gates find nothing to run" {
+  INPUT="$(jq -n --arg cwd "$PROJECT" '{cwd: $cwd, session_id: "s-default"}')"
   run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
   [ "$status" -eq 0 ]
   [ -z "$output" ]
+}
+
+@test "default gates apply when the repo has no harness.gates.json (red bats suite blocks)" {
+  mkdir "$PROJECT/tests"
+  printf '#!/usr/bin/env bats\n@test "red" { false; }\n' > "$PROJECT/tests/t.bats"
+  INPUT="$(jq -n --arg cwd "$PROJECT" '{cwd: $cwd, session_id: "s-default-red"}')"
+  run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  [[ "$(echo "$output" | jq -r '.reason')" == *"tests"* ]]
+}
+
+@test "stop_hook_active no longer short-circuits the gates" {
+  jq -n '{gates: [{name: "boom", run: "false", severity: "block"}]}' > "$PROJECT/harness.gates.json"
+  INPUT="$(jq -n --arg cwd "$PROJECT" '{cwd: $cwd, session_id: "s-active", stop_hook_active: true}')"
+  run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+}
+
+@test "blocks at most 3 times per session, then releases" {
+  jq -n '{gates: [{name: "boom", run: "false", severity: "block"}]}' > "$PROJECT/harness.gates.json"
+  INPUT="$(jq -n --arg cwd "$PROJECT" '{cwd: $cwd, session_id: "s-cap"}')"
+  for i in 1 2 3; do
+    run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  done
+  run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'"block"'* ]]
+  [ "$(cat "$PROJECT/.harness/state/s-cap.stop-blocks")" = "3" ]
+}
+
+@test "the block counter is per session" {
+  jq -n '{gates: [{name: "boom", run: "false", severity: "block"}]}' > "$PROJECT/harness.gates.json"
+  for sid in a b; do
+    INPUT="$(jq -n --arg cwd "$PROJECT" --arg sid "$sid" '{cwd: $cwd, session_id: $sid}')"
+    run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  done
 }
 
 @test "silent when all gates pass" {

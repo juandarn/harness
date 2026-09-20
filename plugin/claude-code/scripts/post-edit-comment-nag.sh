@@ -9,7 +9,13 @@ GATE="$(cd "$SCRIPT_DIR/../gates" && pwd)/comment-nag.sh"
 INPUT="$(cat)"
 
 if command -v jq >/dev/null 2>&1; then
-  FILE_PATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')"
+  FILE_PATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')" || {
+    echo "harness: comment gate cannot parse hook input — blocking instead of skipping." >&2
+    exit 2
+  }
+elif ! command -v python3 >/dev/null 2>&1; then
+  echo "harness: comment gate needs jq or python3 and neither is installed — blocking instead of skipping." >&2
+  exit 2
 else
   FILE_PATH="$(printf '%s' "$INPUT" | python3 -c '
 import json, sys

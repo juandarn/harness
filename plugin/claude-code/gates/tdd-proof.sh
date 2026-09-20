@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # usage: tdd-proof.sh [transcript.jsonl]   (reads stdin if omitted)
-# Strict test-first gate: test must precede source and go RED before GREEN.
+# Offline transcript grader for evals/local (live enforcement: pre-edit-tdd-gate.sh + post-bash-test-recorder.sh).
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
