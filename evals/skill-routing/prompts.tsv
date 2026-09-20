@@ -1,0 +1,14 @@
+concierge-config	quítale el MCP de datadog al concierge de prod
+concierge-config	actualiza el prompt de Maia con lo nuevo de webhooks
+ship-pr	ya quedó, abre el pr en agent-engine-ms
+ship-pr	crea el PR y mándalo al squad
+merchant-data	saca de starrocks el TPV de Rappi en agosto
+merchant-data	cuántas transacciones rechazadas tuvo Vibra ayer
+verify-fix	arreglé el cron de reportes, asegúrate de que no se rompa otra vez
+verify-fix	ya corrí el backfill, valida bien el fix en dev
+product-brief	escribe una propuesta para el equipo sobre alertas proactivas
+product-brief	hazme un documento del discovery de contracargos
+NONE	refactoriza esta función para que sea más legible
+NONE	por qué falla este test de Go
+NONE	qué opinas de usar redis aquí
+NONE	revisa bien el diff antes de commitear
