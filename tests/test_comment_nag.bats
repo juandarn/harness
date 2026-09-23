@@ -72,6 +72,26 @@ EOF
   rm -f "$TXT"
 }
 
+@test "with a changed-lines file, only a run touching a changed line is flagged" {
+  printf '# one\n# two\n# three\n# four\nx = 1\n# a\n# b\n# c\n# d\ny = 2\n' > "$FILE"
+  LINES="$(mktemp)"
+  printf '6\n' > "$LINES"
+  run "$GATE" "$FILE" "$LINES"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"comment block of 4 lines"* ]]
+  [[ "$output" != *":1: comment block"* ]]
+  rm -f "$LINES"
+}
+
+@test "with a changed-lines file and no touched run, the gate passes" {
+  printf '# one\n# two\n# three\n# four\nx = 1\n' > "$FILE"
+  LINES="$(mktemp)"
+  printf '5\n' > "$LINES"
+  run "$GATE" "$FILE" "$LINES"
+  [ "$status" -eq 0 ]
+  rm -f "$LINES"
+}
+
 @test "exits 0 when file does not exist" {
   run "$GATE" "/tmp/does-not-exist-$$.py"
   [ "$status" -eq 0 ]

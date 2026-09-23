@@ -63,6 +63,26 @@ teardown() {
   [ "$status" -eq 1 ]
 }
 
+@test "comment gate: a pre-existing long comment block untouched by the change passes; touching that block blocks; adding a new long block elsewhere blocks" {
+  printf '# one\n# two\n# three\n# four\n# five\nx = 1\ny = 2\n' > big.py
+  git add big.py
+  git_commit -m init
+
+  echo 'z = 3' >> big.py
+  run bash "$GATES/default-comments.sh"
+  [ "$status" -eq 0 ]
+
+  git -C "$REPO" checkout -- big.py
+  sed -i.bak 's/# three/# THREE/' big.py && rm -f big.py.bak
+  run bash "$GATES/default-comments.sh"
+  [ "$status" -eq 1 ]
+
+  git -C "$REPO" checkout -- big.py
+  printf '# a\n# b\n# c\n# d\nw = 1\n' >> big.py
+  run bash "$GATES/default-comments.sh"
+  [ "$status" -eq 1 ]
+}
+
 @test "comment gate: outside a git repo there is nothing to compare" {
   OUT="$(mktemp -d)"
   cd "$OUT"

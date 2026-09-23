@@ -71,7 +71,7 @@ go under `${CLAUDE_PROJECT_DIR}/.harness/` (`state/`, `logs/`, `sdd/`).
 repos without their own `harness.gates.json`; the Stop hook never falls back
 to it. It defines: `tests` (auto-detects go, npm, gradle, mvn, cargo,
 pytest, bats; a detected runner with a missing tool blocks), `comment-restraint`
-(comment-nag over files changed vs HEAD) and `quality`
+(comment-nag over lines changed vs HEAD, not whole files) and `quality`
 (`gates/quality-pipeline.sh`: format, lint, test, coverage, duplication,
 security through `adapters/<stack>/adapter.sh`; only `py` ships today, other
 stacks report that no adapter applies). Thresholds are pinned in
