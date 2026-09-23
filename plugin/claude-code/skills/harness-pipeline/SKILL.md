@@ -20,6 +20,9 @@ the hooks by surprise.
    any git repo. **When denied, do not retry the same call.** Launch a
    subagent instead: code work goes to a Sonnet subagent, purely mechanical
    edits (renames, boilerplate, config copies) also go to a Sonnet subagent.
+   The subagent prompt must say: outline the file (`code-nav` skill), read
+   only the range you change, and list `gopls references` for every exported
+   symbol you touch before editing it; fix all call sites in the same pass.
 4. **Transversal review gate** — fresh-context review before PR. See the
    `review-gate` skill.
 5. **Docker live-test** — run the real service before PR, not just unit
