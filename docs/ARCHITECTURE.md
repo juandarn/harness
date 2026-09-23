@@ -56,18 +56,20 @@ go under `${CLAUDE_PROJECT_DIR}/.harness/` (`state/`, `logs/`, `sdd/`).
   disables it.
 - **Comment nag** (PostToolUse): blocks a comment run of 4 or more consecutive
   lines (shebangs excluded, no header exemption).
-- **Stop hook checklist**: runs the repo's `harness.gates.json`, or
-  `gates/default.gates.json` when the repo has none, and blocks session end
-  while a blocking gate fails. Blocks are counted per session in
-  `.harness/state/` and capped at 3; after the third the session may end.
+- **Stop hook checklist**: runs the repo's `harness.gates.json` and blocks
+  session end while a blocking gate fails; repos with no `harness.gates.json`
+  exit silently (no implicit default gates on Stop). Blocks are counted per
+  session in `.harness/state/` and capped at 3; after the third the session
+  may end.
 - **Design gate** (`gates/design-gate.sh`, opt-in via `harness.gates.json`):
   runs Impeccable's deterministic detector rules over frontend files. Fails
   open with an install notice when impeccable is missing.
 
 ### Default gates
 
-`gates/default.gates.json` applies to repos without their own
-`harness.gates.json`: `tests` (auto-detects go, npm, gradle, mvn, cargo,
+`gates/default.gates.json` applies at commit time (`pre-commit-gate.sh`) to
+repos without their own `harness.gates.json`; the Stop hook never falls back
+to it. It defines: `tests` (auto-detects go, npm, gradle, mvn, cargo,
 pytest, bats; a detected runner with a missing tool blocks), `comment-restraint`
 (comment-nag over files changed vs HEAD) and `quality`
 (`gates/quality-pipeline.sh`: format, lint, test, coverage, duplication,

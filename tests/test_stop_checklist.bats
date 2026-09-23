@@ -17,21 +17,13 @@ teardown() {
   [ -z "$output" ]
 }
 
-@test "silent when no harness.gates.json exists and the default gates find nothing to run" {
-  INPUT="$(jq -n --arg cwd "$PROJECT" '{cwd: $cwd, session_id: "s-default"}')"
-  run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-}
-
-@test "default gates apply when the repo has no harness.gates.json (red bats suite blocks)" {
+@test "no gate runs when the repo has no harness.gates.json, even with a red test suite present" {
   mkdir "$PROJECT/tests"
   printf '#!/usr/bin/env bats\n@test "red" { false; }\n' > "$PROJECT/tests/t.bats"
   INPUT="$(jq -n --arg cwd "$PROJECT" '{cwd: $cwd, session_id: "s-default-red"}')"
   run bash -c "printf '%s' '$INPUT' | \"$HOOK\""
   [ "$status" -eq 0 ]
-  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
-  [[ "$(echo "$output" | jq -r '.reason')" == *"tests"* ]]
+  [ -z "$output" ]
 }
 
 @test "stop_hook_active no longer short-circuits the gates" {

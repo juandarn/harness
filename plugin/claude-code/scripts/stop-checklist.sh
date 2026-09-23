@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Stop hook: runs the repo's harness.gates.json (or gates/default.gates.json when it has none) and
-# blocks session end while a gate is red. A per-session counter caps blocks at 3 so a broken gate
-# cannot trap the session forever.
+# Stop hook: runs the repo's harness.gates.json and blocks session end while a gate is red.
+# Repos with no harness.gates.json exit silently (no implicit default gates on Stop).
+# A per-session counter caps blocks at 3 so a broken gate cannot trap the session forever.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/hook-lib.sh"
 
@@ -56,7 +56,7 @@ command -v jq >/dev/null 2>&1 || block "harness gates cannot run: jq is missing 
 command -v python3 >/dev/null 2>&1 || block "harness gates cannot run: python3 is missing."
 
 GATES_FILE="$ROOT/harness.gates.json"
-[ -f "$GATES_FILE" ] || GATES_FILE="$HARNESS_ROOT/gates/default.gates.json"
+[ -f "$GATES_FILE" ] || exit 0
 [ -f "$HARNESS_ROOT/gates/run_gates.py" ] || block "harness gates cannot run: gates/run_gates.py is missing from the plugin."
 
 OUTPUT="$(python3 "$HARNESS_ROOT/gates/run_gates.py" "$GATES_FILE" "$ROOT" 2>&1)"
