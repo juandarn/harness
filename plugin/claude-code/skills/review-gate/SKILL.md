@@ -12,7 +12,8 @@ context, on the diff only, not the whole repo.
 ## Procedure
 
 1. **Determine diff scope** — the range of commits/files for this change,
-   not the entire repository.
+   not the entire repository. Use `git diff $(git merge-base origin/<base> HEAD)...HEAD`
+   (base = origin/HEAD's default branch, fallback master/main) so content merged in from the base is excluded.
 2. **Launch reviewers via the Task tool**, using the locally available
    reviewer agents:
    - `security-checker` — always, regardless of stack.

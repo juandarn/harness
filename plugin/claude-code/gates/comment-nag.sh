@@ -14,6 +14,8 @@ case "$FILE" in
   *) exit 0 ;;
 esac
 
+head -n 5 "$FILE" | grep -qE 'Code generated .* DO NOT EDIT|@generated' && exit 0
+
 awk -v file="$FILE" -v lines_file="$LINES_FILE" '
 BEGIN {
   scoped = (lines_file != "")
