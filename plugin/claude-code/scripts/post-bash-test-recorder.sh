@@ -26,6 +26,15 @@ CODE="$(printf '%s' "$INPUT" | jq -r '
     end' 2>/dev/null)"
 case "$CODE" in ""|skip) exit 0 ;; esac
 
+# A pipe (`go test | tail`) makes the exit code the last stage's, so a failing run reads as 0.
+# For a piped command that "succeeded", trust unmistakable failure markers in the output instead.
+if [ "$CODE" = "0" ] && [[ "$CMD" == *"|"* ]]; then
+  OUT="$(printf '%s' "$INPUT" | jq -r '(.tool_response // empty) | if type == "string" then . elif type == "object" then ([.stdout, .output, .stderr] | map(select(type == "string")) | join("\n")) else empty end' 2>/dev/null)"
+  if printf '%s\n' "$OUT" | grep -Eq '^(--- FAIL|FAIL($|[[:space:]])|FAILED|not ok )|(^|[^[:alnum:]_])[0-9]+ failed|FAILED( |\.|$)|test result: FAILED'; then
+    CODE=1
+  fi
+fi
+
 STATE="$(hook_harness_subdir state)/$(hook_safe_id "$SID").jsonl" || exit 0
 jq -cn --arg cmd "$CMD" --argjson exit "$CODE" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{ts: $ts, cmd: $cmd, exit: $exit}' >> "$STATE"

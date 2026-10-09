@@ -42,6 +42,7 @@ go under `${CLAUDE_PROJECT_DIR}/.harness/` (`state/`, `logs/`, `sdd/`).
 - **TDD order gate** (`pre-edit-tdd-gate.sh` + `post-bash-test-recorder.sh`):
   the recorder appends every test-runner run and its exit code to
   `.harness/state/<session_id>.jsonl` (PostToolUse and PostToolUseFailure).
+  Piped runs (`go test | tail`) that exit 0 but print a failure marker are recorded as exit 1.
   Edits to production source are denied until that session has a failing run
   (exit codes 126/127 and interrupts do not count). Tests, docs and config
   paths are exempt.

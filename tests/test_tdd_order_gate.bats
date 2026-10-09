@@ -106,6 +106,26 @@ record() { run_hook "$RECORDER" "$(bash_result_json "$@")"; [ "$status" -eq 0 ];
   [ -f "$REPO/.harness/state/.gitignore" ]
 }
 
+@test "piped test run with exit 0 but failure output is recorded as RED" {
+  record "go test ./x -run T 2>&1 | tail -30" '{"stdout":"--- FAIL: TestT (0.00s)\nFAIL\nFAIL\tx\t0.01s","stderr":"","interrupted":false}'
+  jq -e '.exit != 0' "$REPO/.harness/state/s1.jsonl"
+  run_hook "$GATE" "$(edit_json "$REPO/src/app.go")"
+  [ "$status" -eq 0 ]
+  record "pytest -q | tail -5" '{"stdout":"==== 1 failed, 2 passed in 0.1s ====","stderr":""}' s2
+  jq -e '.exit != 0' "$REPO/.harness/state/s2.jsonl"
+  record "cargo test | tail" '{"stdout":"test result: FAILED. 0 passed; 1 failed","stderr":""}' s3
+  jq -e '.exit != 0' "$REPO/.harness/state/s3.jsonl"
+  record "bats t.bats | tail" '{"stdout":"not ok 1 foo","stderr":""}' s4
+  jq -e '.exit != 0' "$REPO/.harness/state/s4.jsonl"
+}
+
+@test "piped passing output stays exit 0; unpiped failure text is unchanged" {
+  record "go test ./x 2>&1 | tail -30" '{"stdout":"ok  \tx\t0.01s","stderr":""}'
+  jq -e '.exit == 0' "$REPO/.harness/state/s1.jsonl"
+  record "go test ./x" '{"stdout":"--- FAIL: TestT","stderr":""}' s2
+  jq -e '.exit == 0' "$REPO/.harness/state/s2.jsonl"
+}
+
 @test "fails closed: bad JSON, missing file_path, missing session_id, missing jq" {
   run_hook "$GATE" "not json"; [ "$status" -eq 2 ]
   run_hook "$GATE" '{"session_id":"s1","tool_input":{}}'; [ "$status" -eq 2 ]
