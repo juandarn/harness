@@ -31,7 +31,7 @@ Fase 4 of 6:
 
 Implemented: blocking, fail-closed hooks (commit/push gate, TDD order gate,
 SDD artifact gate, delegation gate, read gate, comment nag, Stop checklist
-with default gates and a 3-block cap), three shipped skills, and
+with default gates and a 3-block cap), a subagent status line showing each subagent's model, three shipped skills, and
 eval suite structure (`claude plugin eval`, early access — not yet runnable
 on this account). Remaining: knowledge-layer repos (code-graph, repo-graph)
 and dogfooding.
