@@ -168,3 +168,38 @@ bcheck() {
   run bash -c 'printf "%s" "$1" | /bin/bash "$2"' _ "$(bash_json 'cat .harness/state/s1.turn')" "$HOOK"
   [ -z "$output" ]
 }
+
+@test "file tools: protected paths match case-insensitively (case-insensitive filesystems)" {
+  export HARNESS_PROTECT_STATE=1
+  for p in "$REPO/.Harness/State/x.turn" "$REPO/.HARNESS/STATE/x.turn" ".Harness/State/x.turn" "$REPO/.harness/STATE" \
+    "$HOME/.Claude/Projects/-Users-x/ABC.JSONL" "$HOME/.claude/PROJECTS/-Users-x/abc.Jsonl" "$HOME/.CLAUDE/projects/-Users-x/Abc.jsonl"; do
+    fcheck deny "$p"
+  done
+  TRANSCRIPT="$REPO/Elsewhere.txt"
+  fcheck deny "$REPO/ELSEWHERE.TXT"
+}
+
+@test "file tools: mixed-case neighbours and memory notes stay writable" {
+  export HARNESS_PROTECT_STATE=1
+  for p in "$REPO/.HARNESS/LOGS/x.log" "$REPO/.Harness/State.txt" "$REPO/Src/State/a.kt" "$HOME/.Claude/Projects/-Users-x/Memory/MEMORY.md" \
+    "$HOME/.claude/projects/-Users-x/memory/NOTE.MD" "$HOME/.Claude/Settings.json" "$REPO/Data.JSONL"; do
+    fcheck allow "$p"
+  done
+}
+
+@test "Bash: protected paths and write words match case-insensitively" {
+  export HARNESS_PROTECT_STATE=1
+  for c in 'echo 0 > .HARNESS/STATE/x.turn' 'rm .Harness/State/x.turn' 'RM .harness/state/x.turn' 'Echo x >> .Harness/state/x.turn' \
+    'echo x > ~/.CLAUDE/PROJECTS/p/S.JSONL' "echo x > $HOME/.claude/Projects/p/S.Jsonl" 'rm ~/.Claude/projects/p/abc.JSONL' \
+    "SED -i '' d .Harness/State/x.turn" 'Python3 -c 1 .HARNESS/state/x.turn' 'Touch ~/.claude/PROJECTS/p/s.jsonl'; do
+    bcheck deny "$c"
+  done
+}
+
+@test "Bash: mixed-case reads and unrelated or memory writes stay allowed" {
+  export HARNESS_PROTECT_STATE=1
+  for c in 'cat .HARNESS/STATE/x.turn' 'jq . .Harness/State/x.turn' "tail $HOME/.CLAUDE/projects/p/S.JSONL" 'CAT .harness/state/x.turn 2>/dev/null' \
+    "echo x > $HOME/.Claude/Projects/p/Memory/MEMORY.md" 'rm -rf Build' 'echo x > OUT.TXT'; do
+    bcheck allow "$c"
+  done
+}

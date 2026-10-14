@@ -14,6 +14,12 @@ CWD="${CWD:-$(hook_project_dir)}"
 LIVE="$(hook_field '.transcript_path // empty')"
 REAL_HOME="$(cd "$HOME" 2>/dev/null && pwd -P)"
 
+# macOS filesystems are case-insensitive: every path and command comparison is done lowercased.
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+HOME_L="$(lower "$HOME")"
+REAL_HOME_L="$(lower "$REAL_HOME")"
+LIVE_L="$(lower "$LIVE")"
+
 # Lexical normalization of an absolute path: drops empty and . parts, applies ..
 normalize() {
   local IFS=/ part out=""
@@ -30,9 +36,11 @@ normalize() {
 }
 
 protected() {
-  case "$1/" in */.harness/state/*) return 0 ;; esac
-  case "$1" in "$HOME"/.claude/projects/*.jsonl|"$REAL_HOME"/.claude/projects/*.jsonl) return 0 ;; esac
-  [ -n "$LIVE" ] && [ "$1" = "$LIVE" ]
+  local p
+  p="$(lower "$1")"
+  case "$p/" in */.harness/state/*) return 0 ;; esac
+  case "$p" in "$HOME_L"/.claude/projects/*.jsonl|"$REAL_HOME_L"/.claude/projects/*.jsonl) return 0 ;; esac
+  [ -n "$LIVE_L" ] && [ "$p" = "$LIVE_L" ]
 }
 
 # 0 when the target, spelled lexically, through symlinked directories or as a symlink, is protected.
@@ -64,7 +72,7 @@ case "$TOOL" in
   *) exit 0 ;;
 esac
 
-CMD="$(hook_field '.tool_input.command // empty')"
+CMD="$(lower "$(hook_field '.tool_input.command // empty')")"
 if [[ "$CMD" != *.harness/state* ]] && ! [[ "$CMD" == *.claude/projects/* && "$CMD" == *.jsonl* ]]; then exit 0; fi
 
 # Redirections to /dev/null and fd duplications (2>&1) cannot write to a protected file.
