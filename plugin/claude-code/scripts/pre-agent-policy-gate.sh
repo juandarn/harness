@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse(Agent|Task|Workflow): opt-in subagent policy (Workflow needs the user's go, subagents
+# PreToolUse(Agent|Task|Workflow): opt-in subagent policy (Workflow needs "agents: N", subagents
 # need an allowed model, each turn has a spawn cap). Does nothing unless a knob is set.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/hook-lib.sh"
@@ -16,8 +16,8 @@ COST='stating "N agents, rough cost"; they approve'
 
 if [ "$TOOL" = Workflow ]; then
   [ "${HARNESS_WORKFLOW_GATE:-}" = 1 ] || exit 0
-  if [ -n "$STATE" ] && [ -f "$STATE" ] && [ "$(jq -r '.workflow_ok // false' "$STATE" 2>/dev/null)" = true ]; then exit 0; fi
-  hook_decision deny "harness: Workflow needs the user's explicit go. Ask first, $COST by naming the workflow in their reply. Ultracode alone is not consent."
+  if [ -n "$STATE" ] && [ -f "$STATE" ] && jq -e '(.cap_override | type) == "number" and .cap_override >= 1' "$STATE" >/dev/null 2>&1; then exit 0; fi
+  hook_decision deny "harness: Workflow needs the user's explicit go. Ask first, $COST by replying with \"agents: N\". Ultracode alone is not consent."
 fi
 case "$TOOL" in Agent|Task) ;; *) exit 0 ;; esac
 
@@ -64,6 +64,6 @@ NEW="$STATE.tmp.$$"
 if [ -e "$STATE" ]; then
   jq -c '.spawned = ((.spawned // 0) + 1)' "$STATE" > "$NEW" 2>/dev/null
 else
-  jq -nc '{spawned:1,cap_override:null,workflow_ok:false}' > "$NEW" 2>/dev/null
+  jq -nc '{spawned:1,cap_override:null}' > "$NEW" 2>/dev/null
 fi && mv -f "$NEW" "$STATE" 2>/dev/null || { rm -f "$NEW"; hook_decision deny "harness: could not record the subagent spawn in $STATE — denying instead of guessing."; }
 exit 0

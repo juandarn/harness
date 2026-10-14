@@ -63,20 +63,30 @@ state_file() { echo "$REPO/.harness/state/${1:-s1}.turn"; }
   run_hook "$GATE" "$(call_json Workflow)"
   [ "$status" -eq 0 ]
   [ "$(decision)" = "deny" ]
-  [ "$(reason)" = 'harness: Workflow needs the user'"'"'s explicit go. Ask first, stating "N agents, rough cost"; they approve by naming the workflow in their reply. Ultracode alone is not consent.' ]
-  say 'ultracode'
-  run_hook "$GATE" "$(call_json Workflow)"
-  [ "$(decision)" = "deny" ]
+  [ "$(reason)" = 'harness: Workflow needs the user'"'"'s explicit go. Ask first, stating "N agents, rough cost"; they approve by replying with "agents: N". Ultracode alone is not consent.' ]
 }
 
-@test "HARNESS_WORKFLOW_GATE=1 allows Workflow when the prompt names the workflow, until the next prompt" {
+@test "mentioning a workflow in the prompt does not unlock Workflow" {
   export HARNESS_WORKFLOW_GATE=1
-  say 'yes, run the workflow'
+  for p in 'ultracode' "don't use a workflow" 'run the workflow' 'workflows are fine' 'agents: none'; do
+    say "$p"
+    run_hook "$GATE" "$(call_json Workflow)"
+    [ "$(decision)" = "deny" ]
+  done
+}
+
+@test "HARNESS_WORKFLOW_GATE=1 allows Workflow when the prompt carries agents: N (N >= 1), until the next prompt" {
+  export HARNESS_WORKFLOW_GATE=1
+  say 'yes, agents: 4'
   run_hook "$GATE" "$(call_json Workflow)"
   allowed
-  say 'and the workflows too'
+  say 'agents: 1'
   run_hook "$GATE" "$(call_json Workflow)"
   allowed
+  say 'agents: 0'
+  run_hook "$GATE" "$(call_json Workflow)"
+  [ "$(decision)" = "deny" ]
+  say 'agents: 4'
   say 'thanks'
   run_hook "$GATE" "$(call_json Workflow)"
   [ "$(decision)" = "deny" ]
@@ -84,7 +94,9 @@ state_file() { echo "$REPO/.harness/state/${1:-s1}.turn"; }
 
 @test "the workflow go-ahead is per session" {
   export HARNESS_WORKFLOW_GATE=1
-  say 'run the workflow' s1
+  say 'agents: 4' s1
+  run_hook "$GATE" "$(call_json Workflow null s1)"
+  allowed
   run_hook "$GATE" "$(call_json Workflow null s2)"
   [ "$(decision)" = "deny" ]
 }
@@ -157,7 +169,7 @@ state_file() { echo "$REPO/.harness/state/${1:-s1}.turn"; }
   export HARNESS_MAX_AGENTS_PER_TURN=2
   agent sonnet
   allowed
-  [ "$(jq -r .spawned "$(state_file)")" = "1" ]
+  [ "$(jq -c . "$(state_file)")" = '{"spawned":1,"cap_override":null}' ]
   run_hook "$GATE" "$(call_json Task '{"prompt":"x"}')"
   allowed
   agent sonnet
@@ -243,11 +255,13 @@ state_file() { echo "$REPO/.harness/state/${1:-s1}.turn"; }
 
 @test "Workflow calls do not consume the cap" {
   export HARNESS_WORKFLOW_GATE=1 HARNESS_MAX_AGENTS_PER_TURN=1
-  say 'run the workflow'
+  say 'agents: 1'
   run_hook "$GATE" "$(call_json Workflow)"
   allowed
   agent sonnet
   allowed
+  agent sonnet
+  [ "$(decision)" = "deny" ]
 }
 
 @test "parallel Agent calls never exceed the cap" {

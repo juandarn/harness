@@ -14,11 +14,11 @@ teardown() {
 prompt_json() { jq -nc --arg p "$1" --arg sid "${2:-s1}" --arg cwd "$REPO" '{session_id: $sid, cwd: $cwd, hook_event_name: "UserPromptSubmit", prompt: $p}'; }
 state() { jq -c . "$REPO/.harness/state/${1:-s1}.turn"; }
 
-@test "a plain prompt writes a fresh state: nothing spawned, no override, no workflow go-ahead" {
+@test "a plain prompt writes a fresh state: nothing spawned, no override" {
   run_hook "$HOOK" "$(prompt_json 'fix the bug please')"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
-  [ "$(state)" = '{"spawned":0,"cap_override":null,"workflow_ok":false}' ]
+  [ "$(state)" = '{"spawned":0,"cap_override":null}' ]
 }
 
 @test "agents: N sets cap_override, case-insensitively and with optional spaces" {
@@ -42,14 +42,10 @@ agents: 6 and go'; do
   [ "$(jq -r '.cap_override | type' "$REPO/.harness/state/s1.turn")" = "number" ]
 }
 
-@test "the word workflow (or workflows) sets workflow_ok, ultracode alone does not" {
-  for p in 'go with the workflow' 'Workflow' 'run the WORKFLOWS now' 'workflow, please'; do
+@test "the word workflow in a prompt is not recorded: only agents: N is consent" {
+  for p in 'go with the workflow' "don't use a workflow" 'Workflow' 'ultracode'; do
     run_hook "$HOOK" "$(prompt_json "$p")"
-    [ "$(jq -r .workflow_ok "$REPO/.harness/state/s1.turn")" = "true" ]
-  done
-  for p in 'ultracode' 'ultracode on, sure' 'workflowing'; do
-    run_hook "$HOOK" "$(prompt_json "$p")"
-    [ "$(jq -r .workflow_ok "$REPO/.harness/state/s1.turn")" = "false" ]
+    [ "$(state)" = '{"spawned":0,"cap_override":null}' ]
   done
 }
 
@@ -57,7 +53,7 @@ agents: 6 and go'; do
   mkdir -p "$REPO/.harness/state"
   echo '{"spawned":4,"cap_override":9,"workflow_ok":true}' > "$REPO/.harness/state/s1.turn"
   run_hook "$HOOK" "$(prompt_json 'next question')"
-  [ "$(state)" = '{"spawned":0,"cap_override":null,"workflow_ok":false}' ]
+  [ "$(state)" = '{"spawned":0,"cap_override":null}' ]
 }
 
 @test "state is per session and the session id is sanitized into the file name" {
@@ -100,5 +96,5 @@ agents: 6 and go'; do
   [ -x /bin/bash ] || skip "no /bin/bash"
   run bash -c 'printf "%s" "$1" | /bin/bash "$2"' _ "$(prompt_json 'yes, agents: 6, workflow')" "$HOOK"
   [ "$status" -eq 0 ]
-  [ "$(state)" = '{"spawned":0,"cap_override":6,"workflow_ok":true}' ]
+  [ "$(state)" = '{"spawned":0,"cap_override":6}' ]
 }
