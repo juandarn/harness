@@ -267,3 +267,162 @@ ASK_REASON='harness: Slack messages and comments need the human'"'"'s approval f
     [ "$(decision)" = "${case_##*:}" ]
   done
 }
+
+@test "wrappers: bash -c, sh -c, zsh -c and eval are scanned on their inner command" {
+  export HARNESS_DENY_PR_MERGE=1 HARNESS_GIT_HYGIENE=1 HARNESS_ASK_OUTBOUND=1
+  for c in 'bash -c "gh pr merge 12"' "sh -c 'gh pr merge 12'" 'zsh -c "gh pr merge 12"' 'bash -lc "gh pr merge 12"' 'bash -c gh pr merge 12' \
+    '/bin/bash -c "gh pr merge 12"' 'env -u GITHUB_TOKEN bash -c "env -u GITHUB_TOKEN gh pr merge 12"' "bash -c \"bash -c 'gh pr merge 12'\"" \
+    'eval "gh pr merge 12"' 'cd /tmp && sudo bash -c "gh pr merge 1"' 'bash -x -c "gh pr merge 1"' 'bash -c "echo hi; gh pr merge 1"' \
+    'bash -c "git add -A"' "sh -c 'git add .'" 'zsh -c "cd /tmp && git add --all"' 'FOO=1 bash -c "git add -- ."'; do
+    check deny "$c"
+  done
+  check ask 'bash -c "gh pr comment 1 -b x"'
+  check ask "sh -c 'gh api repos/o/r/issues/5/comments -f body=x'"
+}
+
+@test "wrappers: nested wrappers with escaped inner quotes are unwrapped too" {
+  export HARNESS_DENY_PR_MERGE=1 HARNESS_GIT_HYGIENE=1
+  check deny 'bash -c "bash -c \"gh pr merge 12\""'
+  check deny 'sh -c "zsh -c \"git add -A\""'
+  check deny "bash -c \"eval 'gh pr merge 12'\""
+}
+
+@test "wrappers: harmless inner commands and non-wrapper bash/sh uses stay allowed" {
+  export HARNESS_DENY_PR_MERGE=1 HARNESS_GIT_HYGIENE=1 HARNESS_ASK_OUTBOUND=1
+  for c in 'bash -c "git status"' 'bash -c "gh pr view 12"' "sh -c 'echo hi'" 'bash script.sh' 'bash -c "git add src/a.kt"' 'zsh -c "ls -la"' \
+    'eval "ls"' 'bash -c ""' 'bash -c "gh api repos/o/r/issues/5/comments"' 'bash -n script.sh' 'bash --version' 'bash gh-pr-merge.sh'; do
+    check allow "$c"
+  done
+}
+
+@test "wrappers: git stash inside bash -c sees the shared stash" {
+  export HARNESS_GIT_HYGIENE=1
+  two_worktrees
+  check deny 'bash -c "git stash"'
+  check deny "sh -c 'git stash push -m x'"
+  check allow 'bash -c "git stash list"'
+}
+
+@test "merge via the raw GitHub API is denied for curl, wget and httpie, and for GraphQL bodies" {
+  export HARNESS_DENY_PR_MERGE=1
+  for c in "curl -X PUT https://api.github.com/repos/o/r/pulls/12/merge -d '{\"merge_method\":\"squash\"}'" \
+    'curl -s -X PUT -H "Authorization: Bearer ghp_x" "https://api.github.com/repos/o/r/pulls/12/merge"' \
+    'curl https://api.github.com/repos/o/r/pulls/12/merge' 'curl -X PUT "https://api.github.com/repos/o/r/pulls/$N/merge"' \
+    'wget --method=PUT https://api.github.com/repos/o/r/pulls/12/merge' 'http PUT api.github.com/repos/o/r/pulls/12/merge' \
+    'https PUT https://api.github.com/repos/o/r/pulls/12/merge' 'env -u GITHUB_TOKEN curl -X PUT https://api.github.com/repos/o/r/pulls/12/merge' \
+    'bash -c "curl -X PUT https://api.github.com/repos/o/r/pulls/12/merge"' 'gh api repos/o/r/pulls/12/merge -X PUT' \
+    "curl -X POST https://api.github.com/graphql -d '{\"query\":\"mutation { mergePullRequest(input: {pullRequestId: \\\"x\\\"}) { clientMutationId } }\"}'" \
+    "curl -X POST https://api.github.com/graphql -d '{\"query\":\"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \\\"x\\\"}) { clientMutationId } }\"}'" \
+    "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"x\"}) { clientMutationId } }'"; do
+    check deny "$c"
+    [ "$(reason)" = "$MERGE_REASON" ]
+  done
+}
+
+@test "merge via the raw GitHub API: reads and look-alikes stay allowed, and the knob gates it" {
+  export HARNESS_DENY_PR_MERGE=1
+  for c in 'curl https://api.github.com/repos/o/r/pulls/12' 'curl https://api.github.com/repos/o/r/pulls/12/files' \
+    'curl https://api.github.com/repos/o/r/pulls/12/comments' 'curl https://example.com/repos/o/r/pulls/12/merge' \
+    'git commit -m "docs: mergePullRequest and enablePullRequestAutoMerge"' 'echo mergePullRequest' 'grep -rn mergePullRequest src/' \
+    "gh api graphql -f query='{ viewer { login } }'" "curl https://api.github.com/graphql -d '{\"query\":\"{ viewer { login } }\"}'"; do
+    check allow "$c"
+  done
+  unset HARNESS_DENY_PR_MERGE
+  export HARNESS_GIT_HYGIENE=1
+  check allow 'curl -X PUT https://api.github.com/repos/o/r/pulls/12/merge'
+}
+
+@test "ask: curl, wget and httpie writes to GitHub comments, reviews and replies" {
+  export HARNESS_ASK_OUTBOUND=1
+  B='{"body":"x"}'
+  for c in "curl -X POST -d '$B' https://api.github.com/repos/o/r/issues/5/comments" \
+    "curl --request PATCH -d '$B' https://api.github.com/repos/o/r/issues/comments/9" \
+    "curl -d '$B' https://api.github.com/repos/o/r/issues/5/comments" \
+    'curl --data-binary @f.json https://api.github.com/repos/o/r/pulls/5/reviews' \
+    "curl --data-raw '$B' https://api.github.com/repos/o/r/issues/5/comments" \
+    "curl --json '$B' https://api.github.com/repos/o/r/issues/5/comments" \
+    'curl -F body=x https://api.github.com/repos/o/r/pulls/5/comments/7/replies' \
+    'curl --form body=x https://api.github.com/repos/o/r/issues/5/comments' \
+    'curl -XPOST https://api.github.com/repos/o/r/issues/5/comments' \
+    'curl -H "Accept: application/vnd.github+json" -X POST https://api.github.com/repos/o/r/pulls/5/reviews' \
+    "curl -X POST -d '{\"body\":\"ok (see above); thanks & bye | done\"}' https://api.github.com/repos/o/r/issues/5/comments" \
+    'curl -X POST "https://api.github.com/repos/o/r/issues/5/comments?x=1" -d @-' \
+    "wget --method=POST --body-data='$B' https://api.github.com/repos/o/r/issues/5/comments" \
+    "wget --post-data='$B' https://api.github.com/repos/o/r/issues/5/comments" \
+    'http POST api.github.com/repos/o/r/issues/5/comments body=x' 'http --json POST https://api.github.com/repos/o/r/issues/5/comments body=hi' \
+    'http api.github.com/repos/o/r/issues/5/comments body=hi' 'https PATCH api.github.com/repos/o/r/issues/comments/9 body=hi' \
+    'env -u GITHUB_TOKEN curl -X POST -d x https://api.github.com/repos/o/r/issues/5/comments' \
+    'bash -c "curl -X POST -d x https://api.github.com/repos/o/r/issues/5/comments"'; do
+    check ask "$c"
+    [ "$(reason)" = "$ASK_REASON" ]
+  done
+}
+
+@test "ask: reading GitHub comments with curl, wget or httpie stays allowed" {
+  export HARNESS_ASK_OUTBOUND=1
+  for c in 'curl https://api.github.com/repos/o/r/pulls/1/comments' 'curl -s -H "Authorization: Bearer ghp_x" https://api.github.com/repos/o/r/issues/5/comments' \
+    'curl -X GET -d per_page=100 https://api.github.com/repos/o/r/issues/5/comments' 'curl -G -d per_page=100 https://api.github.com/repos/o/r/issues/5/comments' \
+    'curl -o out.json https://api.github.com/repos/o/r/issues/5/comments' 'curl -X POST -d x https://api.github.com/repos/o/r/issues' \
+    'curl -X POST -d x https://example.com/comments' 'http api.github.com/repos/o/r/issues/5/comments' \
+    'http GET api.github.com/repos/o/r/issues/5/comments page==2' 'wget -qO- https://api.github.com/repos/o/r/issues/5/comments' \
+    'curl -X DELETE https://api.github.com/repos/o/r/issues/comments/9' "curl -d '{\"query\":\"{ viewer { login } }\"}' https://api.github.com/graphql"; do
+    check allow "$c"
+  done
+}
+
+@test "ask: GraphQL mutations that post comments or reviews, via gh api graphql or curl" {
+  export HARNESS_ASK_OUTBOUND=1
+  for m in addComment addPullRequestReview addPullRequestReviewComment addPullRequestReviewThreadReply addDiscussionComment; do
+    check ask "gh api graphql -f query='mutation { $m(input: {subjectId: \"x\", body: \"y\"}) { clientMutationId } }'"
+    check ask "curl -X POST https://api.github.com/graphql -d '{\"query\":\"mutation { $m(input: {}) { clientMutationId } }\"}'"
+  done
+  [ "$(reason)" = "$ASK_REASON" ]
+  for c in "gh api graphql -f query='{ viewer { login } }'" \
+    "gh api graphql -f query='{ repository(owner:\"o\", name:\"r\") { pullRequest(number:1) { reviews(first:5) { nodes { state } } } } }'" \
+    'git commit -m "docs: addComment helper"' 'grep -rn addComment src/'; do
+    check allow "$c"
+  done
+}
+
+@test "ask: Slack web API writes and incoming webhooks" {
+  export HARNESS_ASK_OUTBOUND=1
+  for m in chat.postMessage chat.scheduleMessage chat.update reactions.add conversations.create canvases.create canvases.edit; do
+    check ask "curl -X POST -H 'Authorization: Bearer xoxb-x' -d channel=C1 https://slack.com/api/$m"
+  done
+  check ask "curl -X POST -d '{\"text\":\"x\"}' https://hooks.slack.com/services/T000/B000/XXX"
+  check ask "python3 -c \"import requests; requests.post('https://slack.com/api/chat.postMessage', json={})\""
+  check ask 'curl -d text=hi https://myco.slack.com/api/chat.postMessage'
+  [ "$(reason)" = "$ASK_REASON" ]
+  for c in 'curl https://slack.com/api/conversations.history -d channel=C1' 'curl https://slack.com/api/auth.test' 'curl https://slack.com/api/users.list' \
+    'curl https://slack.com/api/chat.getPermalink -d channel=C1' 'curl https://slack.com/api/conversations.list' 'echo hi'; do
+    check allow "$c"
+  done
+}
+
+@test "ask: Atlassian REST comment writes" {
+  export HARNESS_ASK_OUTBOUND=1
+  for c in "curl -u a:b -X POST -H 'Content-Type: application/json' https://y.atlassian.net/rest/api/3/issue/ABC-1/comment -d '{\"body\":\"x\"}'" \
+    'curl -X PUT -d x https://y.atlassian.net/rest/api/3/issue/ABC-1/comment/10' 'curl -d @c.json https://y.atlassian.net/rest/api/content/123/child/comment' \
+    "curl --json '{}' https://y.atlassian.net/rest/api/2/issue/ABC-1/comment" 'http POST y.atlassian.net/rest/api/3/issue/ABC-1/comment body=x' \
+    'wget --post-data=x https://y.atlassian.net/rest/api/3/issue/ABC-1/comment'; do
+    check ask "$c"
+  done
+  [ "$(reason)" = "$ASK_REASON" ]
+  for c in 'curl -u a:b https://y.atlassian.net/rest/api/3/issue/ABC-1/comment' 'curl -u a:b https://y.atlassian.net/rest/api/3/issue/ABC-1' \
+    'curl -X POST -d x https://y.atlassian.net/rest/api/3/issue' 'curl -X GET https://y.atlassian.net/rest/api/3/issue/ABC-1/comment' \
+    'curl -X POST -d x https://y.atlassian.net/rest/api/3/search'; do
+    check allow "$c"
+  done
+}
+
+@test "the new ask rules are off without HARNESS_ASK_OUTBOUND, and a deny still wins" {
+  export HARNESS_DENY_PR_MERGE=1
+  check allow 'curl -X POST -d x https://api.github.com/repos/o/r/issues/5/comments'
+  check allow 'curl -X POST -d text=hi https://slack.com/api/chat.postMessage'
+  check allow 'curl -X POST -d x https://y.atlassian.net/rest/api/3/issue/ABC-1/comment'
+  check allow "gh api graphql -f query='mutation { addComment(input: {}) { clientMutationId } }'"
+  check allow 'bash -c "gh pr comment 1 -b x"'
+  export HARNESS_ASK_OUTBOUND=1
+  check deny 'curl -X POST -d x https://api.github.com/repos/o/r/issues/1/comments && curl -X PUT https://api.github.com/repos/o/r/pulls/1/merge'
+  check deny 'bash -c "curl -X POST -d x https://slack.com/api/chat.postMessage; gh pr merge 1"'
+}

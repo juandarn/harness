@@ -37,8 +37,20 @@ DIR="${DIR:-$(hook_project_dir)}"
 
 GH_RE="${HOOK_CMD_PREFIX}gh[[:space:]]+"
 GIT_RE="${HOOK_CMD_PREFIX}git([[:space:]]+(-[cC][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+"
+WRAP_RE="${HOOK_CMD_PREFIX}(eval|([^[:space:]]*/)?(bash|sh|zsh)([[:space:]]+-[A-Za-z-]+)*[[:space:]]+-[A-Za-z]*c)[[:space:]]+"
 LEAD_RE='^[[:space:]]*(\{|!|if|then|else|elif|do|while|until)[[:space:]]+(.*)$'
-MERGE_PATH_RE='pulls/[^/]+/merge($|[^[:alnum:]_-])'
+MERGE_PATH_RE='pulls/[^/[:space:]]+/merge($|[^[:alnum:]_-])'
+URL=$'[^[:space:]"\']*'
+GH_CTX_RE='api\.github\.com|(^|[^[:alnum:]_-])gh[[:space:]]+api([[:space:]]|$)'
+GH_COMMENT_URL_RE="api\\.github\\.com${URL}/(comments|reviews|replies)"
+JIRA_COMMENT_URL_RE="/rest/api/${URL}/comment"
+GQL_WRITE_RE='add(Comment|PullRequestReview|PullRequestReviewComment|PullRequestReviewThreadReply|DiscussionComment)'
+SLACK_RE='slack\.com/api/(chat\.postMessage|chat\.scheduleMessage|chat\.update|reactions\.add|conversations\.create|canvases\.create|canvases\.edit)|hooks\.slack\.com/'
+WRITE_METHOD_RE='(^|[[:space:]])(-X|--request|--method)[[:space:]=]*["'"'"']?(POST|PATCH|PUT|post|patch|put)([^[:alnum:]]|$)|(^|[[:space:]])-X(POST|PATCH|PUT)|[[:space:]](POST|PATCH|PUT)[[:space:]]'
+GET_METHOD_RE='(^|[[:space:]])(-X|--request|--method)[[:space:]=]*["'"'"']?(GET|get)([^[:alnum:]]|$)|(^|[[:space:]])-XGET|[[:space:]]GET[[:space:]]|(^|[[:space:]])(-G|--get)([[:space:]]|$)'
+DATA_RE='(^|[[:space:]])(-d|-F|-T)|(^|[[:space:]])--(data[a-z-]*|json|form[a-z-]*|post-data|post-file|body-data|body-file|upload-file)([[:space:]=]|$)'
+HTTPIE_RE='(^|[^[:alnum:]_./-])(http|https|httpie|xh)[[:space:]]'
+HTTPIE_ITEM_RE='[[:space:]][A-Za-z_][A-Za-z0-9_.-]*(:=|=[^=])'
 
 # Words of a command tail, unglobbed and with one layer of surrounding quotes removed.
 split_words() {
@@ -97,34 +109,66 @@ shared_stash() {
   [ "$(git -C "$(hook_cmd_dir "$CMD" "$DIR")" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')" -gt 1 ]
 }
 
+# 0 when a curl/wget/httpie-style command writes: POST/PATCH/PUT, or a data flag unless GET is forced.
+http_write() {
+  [[ "$1" =~ $WRITE_METHOD_RE ]] && return 0
+  [[ "$1" =~ $GET_METHOD_RE ]] && return 1
+  [[ "$1" =~ $DATA_RE ]] && return 0
+  [[ "$1" =~ $HTTPIE_RE && "$1" =~ $HTTPIE_ITEM_RE ]]
+}
+
 ASKED=0
-while IFS= read -r SEG; do
-  while [[ "$SEG" =~ $LEAD_RE ]]; do SEG="${BASH_REMATCH[2]}"; done
-  if [[ "$SEG" =~ $GH_RE ]]; then
-    REST="${SEG:${#BASH_REMATCH[0]}}"
-    split_words "$REST"
-    SUB="${WORDS[0]:-} ${WORDS[1]:-}"
-    if [ "$MERGE" = 1 ]; then
-      [ "$SUB" = "pr merge" ] && hook_decision deny "$MERGE_MSG"
-      if [ "${WORDS[0]:-}" = api ]; then
-        [[ "$REST" =~ $MERGE_PATH_RE || "$REST" == *mergePullRequest* || "$REST" == *enablePullRequestAutoMerge* ]] && hook_decision deny "$MERGE_MSG"
+scan_segments() {
+  local SEG REST SUB
+  while IFS= read -r SEG; do
+    while [[ "$SEG" =~ $LEAD_RE ]]; do SEG="${BASH_REMATCH[2]}"; done
+    if [[ "$SEG" =~ $WRAP_RE ]]; then
+      REST="${SEG:${#BASH_REMATCH[0]}}"
+      while :; do case "$REST" in \\*|\"*|\'*) REST="${REST#?}" ;; *) break ;; esac; done
+      scan_segments "$REST"
+    elif [[ "$SEG" =~ $GH_RE ]]; then
+      REST="${SEG:${#BASH_REMATCH[0]}}"
+      split_words "$REST"
+      SUB="${WORDS[0]:-} ${WORDS[1]:-}"
+      if [ "$MERGE" = 1 ]; then
+        [ "$SUB" = "pr merge" ] && hook_decision deny "$MERGE_MSG"
+        if [ "${WORDS[0]:-}" = api ]; then
+          [[ "$REST" =~ $MERGE_PATH_RE || "$REST" == *mergePullRequest* || "$REST" == *enablePullRequestAutoMerge* ]] && hook_decision deny "$MERGE_MSG"
+        fi
       fi
+      if [ "$ASK" = 1 ]; then
+        case "$SUB" in "pr comment"|"issue comment"|"pr review") ASKED=1 ;; esac
+        if [ "${WORDS[0]:-}" = api ] && comment_write; then ASKED=1; fi
+      fi
+    elif [ "$HYGIENE" = 1 ] && [[ "$SEG" =~ $GIT_RE ]]; then
+      REST="${SEG:${#BASH_REMATCH[0]}}"
+      split_words "$REST"
+      case "${WORDS[0]:-}" in
+        add) blanket_add && hook_decision deny "$ADD_MSG" ;;
+        stash) shared_stash && hook_decision deny "$STASH_MSG" ;;
+      esac
     fi
-    if [ "$ASK" = 1 ]; then
-      case "$SUB" in "pr comment"|"issue comment"|"pr review") ASKED=1 ;; esac
-      if [ "${WORDS[0]:-}" = api ] && comment_write; then ASKED=1; fi
-    fi
-  elif [ "$HYGIENE" = 1 ] && [[ "$SEG" =~ $GIT_RE ]]; then
-    REST="${SEG:${#BASH_REMATCH[0]}}"
-    split_words "$REST"
-    case "${WORDS[0]:-}" in
-      add) blanket_add && hook_decision deny "$ADD_MSG" ;;
-      stash) shared_stash && hook_decision deny "$STASH_MSG" ;;
-    esac
-  fi
-done <<EOF2
-$(printf '%s' "$CMD" | tr '\n;&|()`' '\n')
+  done <<EOF2
+$(printf '%s' "$1" | tr '\n;&|()`' '\n')
 EOF2
+}
+
+# Whole-command checks for raw API calls, whose arguments the segment split would cut apart.
+if [[ "$CMD" =~ $GH_CTX_RE ]]; then
+  if [ "$MERGE" = 1 ]; then
+    [[ "$CMD" =~ $MERGE_PATH_RE || "$CMD" == *mergePullRequest* || "$CMD" == *enablePullRequestAutoMerge* ]] && hook_decision deny "$MERGE_MSG"
+  fi
+  if [ "$ASK" = 1 ]; then
+    [[ "$CMD" =~ $GQL_WRITE_RE ]] && ASKED=1
+    [[ "$CMD" =~ $GH_COMMENT_URL_RE ]] && http_write "$CMD" && ASKED=1
+  fi
+fi
+if [ "$ASK" = 1 ]; then
+  [[ "$CMD" =~ $SLACK_RE ]] && ASKED=1
+  [[ "$CMD" =~ $JIRA_COMMENT_URL_RE ]] && http_write "$CMD" && ASKED=1
+fi
+
+scan_segments "$CMD"
 
 [ "$ASKED" = 1 ] && hook_decision ask "$ASK_MSG"
 exit 0
