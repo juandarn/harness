@@ -51,3 +51,9 @@ HOOKS="$PLUGIN/hooks/hooks.json"
     bash -n "$f" || { echo "syntax error: $f"; return 1; }
   done
 }
+
+@test "the turn recorder is wired to UserPromptSubmit and the agent policy gate to Agent, Task and Workflow, 10s each" {
+  jq -e '[.hooks.UserPromptSubmit[].hooks[] | select(.command | endswith("user-prompt-turn.sh")) | .timeout] == [10]' "$HOOKS"
+  jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | endswith("pre-agent-policy-gate.sh")) | .matcher] == ["Agent|Task|Workflow"]' "$HOOKS"
+  jq -e '[.hooks.PreToolUse[].hooks[] | select(.command | endswith("pre-agent-policy-gate.sh")) | .timeout] == [10]' "$HOOKS"
+}

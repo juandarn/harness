@@ -31,6 +31,12 @@
         "hooks": [
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pre-read-range-gate.sh", "timeout": 5 }
         ]
+      },
+      {
+        "matcher": "Agent|Task|Workflow",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pre-agent-policy-gate.sh", "timeout": 10 }
+        ]
       }
     ],
     "PostToolUse": [
@@ -52,6 +58,13 @@
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/post-bash-test-recorder.sh", "timeout": 10 }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/user-prompt-turn.sh", "timeout": 10 }
         ]
       }
     ],

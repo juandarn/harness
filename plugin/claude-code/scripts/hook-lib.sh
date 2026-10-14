@@ -21,6 +21,13 @@ hook_read_json() {
   printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || hook_block "hook input is not valid JSON — blocking instead of guessing."
 }
 
+# PreToolUse permission decision (deny or ask) on stdout, same shape as the delegation gate; exits 0.
+hook_decision() {
+  jq -n --arg d "$1" --arg reason "$2" \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:$d,permissionDecisionReason:$reason}}'
+  exit 0
+}
+
 # Start of a shell command plus any wrappers: sudo/command/time/exec, `env` with options
 # (-u NAME, -i) and NAME=value assignments, and bare NAME=value assignments.
 HOOK_ASSIGN=$'[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|\'[^\']*\'|[^[:space:]]*)'
@@ -84,4 +91,12 @@ hook_relpath() {
   real="$(cd "$dir" 2>/dev/null && pwd -P)"
   full="${real:-$dir}${file#"$dir"}"
   case "$full" in "$root"/*) printf '%s' "${full#"$root"/}" ;; *) printf '%s' "$full" ;; esac
+}
+
+# Per-session turn state file (subagent spawn count, agents: N override, workflow go-ahead).
+hook_turn_state() {
+  local d sid
+  d="$(hook_harness_subdir state)" || return 1
+  sid="$(hook_safe_id "$(hook_field '.session_id // empty')")"
+  printf '%s/%s.turn' "$d" "${sid:-nosession}"
 }
