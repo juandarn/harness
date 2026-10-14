@@ -100,3 +100,18 @@ hook_turn_state() {
   sid="$(hook_safe_id "$(hook_field '.session_id // empty')")"
   printf '%s/%s.turn' "$d" "${sid:-nosession}"
 }
+
+# Directory a git command runs in: `git -C <dir>` wins, then a leading `cd <dir>`, else the default.
+hook_cmd_dir() {
+  local cmd="${1//$'\n'/;}" dir="$2" target="" cd_re c_re
+  cd_re='(^|[;&|][[:space:]]*)cd[[:space:]]+"?([^;&|"[:space:]]+)'
+  c_re='git[[:space:]]+-C[[:space:]]+"?([^"[:space:]]+)'
+  if [[ "$cmd" =~ $c_re ]]; then target="${BASH_REMATCH[1]}"
+  elif [[ "$cmd" =~ $cd_re ]]; then target="${BASH_REMATCH[2]}"; fi
+  if [ -n "$target" ]; then
+    target="${target/#\~/$HOME}"
+    case "$target" in /*) ;; *) target="$dir/$target" ;; esac
+    [ -d "$target" ] && dir="$target"
+  fi
+  printf '%s' "$dir"
+}

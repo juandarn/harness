@@ -33,6 +33,18 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pre-outbound-gate.sh", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pre-outbound-gate.sh", "timeout": 10 }
+        ]
+      },
+      {
         "matcher": "Agent|Task|Workflow",
         "hooks": [
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pre-agent-policy-gate.sh", "timeout": 10 }
