@@ -3,6 +3,7 @@
 load helpers
 
 setup() {
+  unset HARNESS_ATTRIBUTION_GATE
   HOOK="$SCRIPTS/pre-commit-gate.sh"
   new_repo
   echo '{"gates":[{"name":"ok","run":"true","severity":"block"}]}' > "$REPO/harness.gates.json"
@@ -150,4 +151,89 @@ EOF
   rm "$REPO/harness.gates.json"; echo '{"gates":[]}' > "$REPO/harness.gates.json"
   run bash -c 'printf "%s" "$1" | /bin/bash "$2"' _ "$(bash_json 'git commit -m x')" "$HOOK"
   [ "$status" -eq 0 ]
+}
+
+@test "env-prefixed and assignment-prefixed git commit/push are recognized: --no-verify is denied" {
+  for c in 'env -u GITHUB_TOKEN git commit --no-verify -m x' 'FOO=bar git push --no-verify origin main' \
+    'env -i FOO=bar git commit --no-verify -m x' 'A=1 B="two words" git commit --no-verify -m x' \
+    'env --unset=GITHUB_TOKEN git push --no-verify' 'env -u GITHUB_TOKEN sudo git push --no-verify'; do
+    run_hook "$HOOK" "$(bash_json "$c")"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--no-verify"* ]]
+  done
+}
+
+@test "env-prefixed git commit with an attribution message is denied" {
+  run_hook "$HOOK" "$(bash_json 'env -u GITHUB_TOKEN git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"AI attribution"* ]]
+}
+
+@test "env-prefixed and assignment-prefixed git runs the repo gates, also with -C and cd" {
+  red_gates
+  for c in 'env -u GITHUB_TOKEN git commit -m x' 'FOO=bar git push origin main' \
+    "env -u GITHUB_TOKEN git -C $REPO commit -m x" "cd $REPO && env -u GITHUB_TOKEN git commit -m x"; do
+    run_hook "$HOOK" "$(bash_json "$c" "$(mktemp -d)")"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"boom"* ]]
+  done
+}
+
+@test "env and assignment prefixes do not make non-commands look like commits" {
+  red_gates
+  for c in 'echo "env -u GITHUB_TOKEN git commit"' 'echo FOO=bar git commit' 'env -u GITHUB_TOKEN git status' \
+    'FOO=bar git log --oneline' 'env -u GITHUB_TOKEN gh pr create' 'FOO=git commit'; do
+    run_hook "$HOOK" "$(bash_json "$c")"
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=0 allows trailers in commit messages, -F files and MCP messages" {
+  export HARNESS_ATTRIBUTION_GATE=0
+  run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+  [ "$status" -eq 0 ]
+  run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x" -m "Generated with Claude Code"')"
+  [ "$status" -eq 0 ]
+  printf 'feat: x\n\nCo-authored-by: Bot <noreply@anthropic.com>\n' > "$REPO/msg.txt"
+  run_hook "$HOOK" "$(bash_json "git commit -F $REPO/msg.txt")"
+  [ "$status" -eq 0 ]
+  run_hook "$HOOK" "$(mcp_json mcp__plugin_yuno_github__push_files '{"message":"feat: x\n\nCo-Authored-By: A <a@b.c>"}')"
+  [ "$status" -eq 0 ]
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=0 lets push through with attributed unpushed commits" {
+  export HARNESS_ATTRIBUTION_GATE=0
+  git_commit -m "feat: sneaky" -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+  run_hook "$HOOK" "$(bash_json 'git push origin main')"
+  [ "$status" -eq 0 ]
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=0 still denies --no-verify, core.hooksPath and red gates" {
+  export HARNESS_ATTRIBUTION_GATE=0
+  for c in 'git commit --no-verify -m "x"' 'git push --no-verify origin main' 'git -c core.hooksPath=/dev/null commit -m x'; do
+    run_hook "$HOOK" "$(bash_json "$c")"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--no-verify"* ]]
+  done
+  red_gates
+  run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"boom"* ]]
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=1 and an empty value keep denying attribution" {
+  for v in 1 ""; do
+    export HARNESS_ATTRIBUTION_GATE="$v"
+    run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"AI attribution"* ]]
+  done
 }

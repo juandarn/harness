@@ -21,6 +21,19 @@ hook_read_json() {
   printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || hook_block "hook input is not valid JSON — blocking instead of guessing."
 }
 
+# PreToolUse permission decision (deny or ask) on stdout, same shape as the delegation gate; exits 0.
+hook_decision() {
+  jq -n --arg d "$1" --arg reason "$2" \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:$d,permissionDecisionReason:$reason}}'
+  exit 0
+}
+
+# Start of a shell command plus any wrappers: sudo/command/time/exec, `env` with options
+# (-u NAME, -i) and NAME=value assignments, and bare NAME=value assignments.
+HOOK_ASSIGN=$'[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|\'[^\']*\'|[^[:space:]]*)'
+HOOK_ENV_OPT="(-[uCS][[:space:]]+[^[:space:]]+|--(unset|chdir|split-string)[[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?|-[A-Za-z0-9]+|${HOOK_ASSIGN})"
+HOOK_CMD_PREFIX="(^|[;&|(\`{])[[:space:]]*((sudo|command|time|exec|${HOOK_ASSIGN}|env([[:space:]]+${HOOK_ENV_OPT})*)[[:space:]]+)*"
+
 hook_field() { printf '%s' "$INPUT" | jq -r "$1" 2>/dev/null; }
 
 hook_project_dir() {
@@ -78,4 +91,27 @@ hook_relpath() {
   real="$(cd "$dir" 2>/dev/null && pwd -P)"
   full="${real:-$dir}${file#"$dir"}"
   case "$full" in "$root"/*) printf '%s' "${full#"$root"/}" ;; *) printf '%s' "$full" ;; esac
+}
+
+# Per-session turn state file (subagent spawn count, agents: N override, workflow go-ahead).
+hook_turn_state() {
+  local d sid
+  d="$(hook_harness_subdir state)" || return 1
+  sid="$(hook_safe_id "$(hook_field '.session_id // empty')")"
+  printf '%s/%s.turn' "$d" "${sid:-nosession}"
+}
+
+# Directory a git command runs in: `git -C <dir>` wins, then a leading `cd <dir>`, else the default.
+hook_cmd_dir() {
+  local cmd="${1//$'\n'/;}" dir="$2" target="" cd_re c_re
+  cd_re='(^|[;&|][[:space:]]*)cd[[:space:]]+"?([^;&|"[:space:]]+)'
+  c_re='git[[:space:]]+-C[[:space:]]+"?([^"[:space:]]+)'
+  if [[ "$cmd" =~ $c_re ]]; then target="${BASH_REMATCH[1]}"
+  elif [[ "$cmd" =~ $cd_re ]]; then target="${BASH_REMATCH[2]}"; fi
+  if [ -n "$target" ]; then
+    target="${target/#\~/$HOME}"
+    case "$target" in /*) ;; *) target="$dir/$target" ;; esac
+    [ -d "$target" ] && dir="$target"
+  fi
+  printf '%s' "$dir"
 }

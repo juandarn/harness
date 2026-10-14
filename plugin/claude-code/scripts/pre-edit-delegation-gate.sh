@@ -31,9 +31,11 @@ else
   deny "harness: neither jq nor python3 is installed — denying edits instead of skipping the gate."
 fi
 
+TRANSCRIPT_PATH=""
 if command -v jq >/dev/null 2>&1; then
   AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null)"
   FILE_PATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
+  TRANSCRIPT_PATH="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)"
 else
   PARSED="$(printf '%s' "$INPUT" | python3 -c '
 import json, sys
@@ -66,5 +68,14 @@ REPO_ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null)"
 # Per-repo opt-out, meant to be gitignored.
 [ -f "$REPO_ROOT/.harness-inline-ok" ] && exit 0
 
-deny "harness: the main session does not edit code — delegate to a subagent (Sonnet). This repo enforces orchestrator-only mode."
+# HARNESS_INLINE_MODELS: the main session's model is the last non-sidechain assistant entry.
+if [ -n "${HARNESS_INLINE_MODELS:-}" ] && [ -n "$TRANSCRIPT_PATH" ] && [ -r "$TRANSCRIPT_PATH" ] && command -v jq >/dev/null 2>&1; then
+  MODEL="$(tail -n 2000 "$TRANSCRIPT_PATH" 2>/dev/null | grep -E '"type" *: *"assistant"' \
+    | jq -Rr 'fromjson? | select(type == "object" and .type == "assistant" and .isSidechain != true) | (.message | objects | .model | strings) | select(. != "<synthetic>")' 2>/dev/null | tail -n 1)"
+  if [ -n "$MODEL" ] && printf '%s' "$MODEL" | grep -Eiq -- "$HARNESS_INLINE_MODELS" 2>/dev/null; then
+    exit 0
+  fi
+fi
+
+deny "harness: the main session does not edit code — delegate to ${HARNESS_DELEGATE_TO:-a subagent (Sonnet)}. This repo enforces orchestrator-only mode."
 exit 0
