@@ -62,3 +62,8 @@ HOOKS="$PLUGIN/hooks/hooks.json"
   jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | endswith("pre-outbound-gate.sh")) | .matcher] | sort == ["Bash", "mcp__.*"]' "$HOOKS"
   jq -e '[.hooks.PreToolUse[].hooks[] | select(.command | endswith("pre-outbound-gate.sh")) | .timeout] == [10, 10]' "$HOOKS"
 }
+
+@test "the state guard is wired to Bash and to the file edit tools, 10s each" {
+  jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | endswith("pre-state-guard.sh")) | .matcher] | sort == ["Bash", "Edit|Write|MultiEdit|NotebookEdit"]' "$HOOKS"
+  jq -e '[.hooks.PreToolUse[].hooks[] | select(.command | endswith("pre-state-guard.sh")) | .timeout] == [10, 10]' "$HOOKS"
+}
