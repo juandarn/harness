@@ -36,6 +36,8 @@ eval suite structure (`claude plugin eval`, early access — not yet runnable
 on this account). Remaining: knowledge-layer repos (code-graph, repo-graph)
 and dogfooding.
 
+Opt-in profile knobs (model-aware delegation, subagent policy, outbound and state guards) are documented in docs/ARCHITECTURE.md → Profile knobs.
+
 ## Requirements
 
 `jq` and `python3` must be installed: the hooks block instead of skipping when
@@ -50,6 +52,21 @@ either is missing. The default `quality` gate for Python repos also needs
   shape and writes `.harness/live-test.md` evidence.
 - **`review-gate`** — launches fresh-context transversal review via
   subagents and writes `.harness/review-report.md` evidence.
+
+## Profile knobs
+
+Set knobs in the `env` block of `~/.claude/settings.json`; this example lets Haiku and Sonnet sessions edit inline, allows only Sonnet and Haiku subagents, caps spawns at three per turn, and blocks PR merges.
+
+```json
+{
+  "env": {
+    "HARNESS_INLINE_MODELS": "haiku|sonnet",
+    "HARNESS_SUBAGENT_MODELS": "^(sonnet|haiku)$",
+    "HARNESS_MAX_AGENTS_PER_TURN": "3",
+    "HARNESS_DENY_PR_MERGE": "1"
+  }
+}
+```
 
 ## Docs
 
