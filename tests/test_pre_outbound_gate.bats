@@ -169,7 +169,6 @@ ASK_REASON='harness: Slack messages and comments need the human'"'"'s approval f
   check deny "git -C $REPO stash" "$OTHER"
   check deny "cd $REPO && git stash" "$OTHER"
   check deny 'git stash' "$WT"
-  check allow 'git stash' "$OTHER"
   rm -rf "$OTHER"
 }
 
@@ -425,4 +424,40 @@ ASK_REASON='harness: Slack messages and comments need the human'"'"'s approval f
   export HARNESS_ASK_OUTBOUND=1
   check deny 'curl -X POST -d x https://api.github.com/repos/o/r/issues/1/comments && curl -X PUT https://api.github.com/repos/o/r/pulls/1/merge'
   check deny 'bash -c "curl -X POST -d x https://slack.com/api/chat.postMessage; gh pr merge 1"'
+}
+
+@test "git stash fails closed when the worktree list cannot be read, but list and show still pass" {
+  export HARNESS_GIT_HYGIENE=1
+  OTHER="$(mktemp -d)"
+  for c in 'git stash' 'git stash push -m x' 'git stash pop' 'git stash -u'; do
+    check deny "$c" "$OTHER"
+    case "$(reason)" in *"worktree"*"WIP commit"*"git reset --soft HEAD~1"*) ;; *) echo "reason: $(reason)"; false ;; esac
+  done
+  check allow 'git stash list' "$OTHER"
+  check allow 'git stash show -p' "$OTHER"
+  rm -rf "$OTHER"
+}
+
+@test "git stash fails closed when git errors out or lists no worktrees" {
+  export HARNESS_GIT_HYGIENE=1
+  git_commit -m init
+  FAKE="$(mktemp -d)"
+  printf '#!/bin/sh\nexit 1\n' > "$FAKE/git"
+  printf '#!/bin/sh\nexit 0\n' > "$FAKE/git-silent"
+  chmod +x "$FAKE/git" "$FAKE/git-silent"
+  PATH="$FAKE:$PATH" check deny 'git stash'
+  cp "$FAKE/git-silent" "$FAKE/git"
+  PATH="$FAKE:$PATH" check deny 'git stash push'
+  PATH="$FAKE:$PATH" check allow 'git stash list'
+  PATH="$FAKE:$PATH" check allow 'git status'
+}
+
+@test "git stash is still allowed in single-worktree repos: fresh, with commits, from a subdirectory" {
+  export HARNESS_GIT_HYGIENE=1
+  check allow 'git stash'
+  git_commit -m init
+  mkdir "$REPO/sub"
+  check allow 'git stash'
+  check allow 'git stash push -m x' "$REPO/sub"
+  check allow "git -C $REPO stash pop" "$(mktemp -d)"
 }

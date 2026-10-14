@@ -104,9 +104,12 @@ comment_write() {
   [ "$fields" = 1 ]
 }
 
+# 0 unless the repo has exactly one worktree: a failing or empty worktree list counts as shared.
 shared_stash() {
+  local n
   case "${WORDS[1]:-}" in list|show) return 1 ;; esac
-  [ "$(git -C "$(hook_cmd_dir "$CMD" "$DIR")" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')" -gt 1 ]
+  n="$(git -C "$(hook_cmd_dir "$CMD" "$DIR")" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')"
+  [ "$n" != 1 ]
 }
 
 # 0 when a curl/wget/httpie-style command writes: POST/PATCH/PUT, or a data flag unless GET is forced.
