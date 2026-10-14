@@ -3,6 +3,7 @@
 load helpers
 
 setup() {
+  unset HARNESS_ATTRIBUTION_GATE
   HOOK="$SCRIPTS/pre-commit-gate.sh"
   new_repo
   echo '{"gates":[{"name":"ok","run":"true","severity":"block"}]}' > "$REPO/harness.gates.json"
@@ -186,5 +187,53 @@ Co-Authored-By: Someone <a@b.c>"')"
     'FOO=bar git log --oneline' 'env -u GITHUB_TOKEN gh pr create' 'FOO=git commit'; do
     run_hook "$HOOK" "$(bash_json "$c")"
     [ "$status" -eq 0 ]
+  done
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=0 allows trailers in commit messages, -F files and MCP messages" {
+  export HARNESS_ATTRIBUTION_GATE=0
+  run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+  [ "$status" -eq 0 ]
+  run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x" -m "Generated with Claude Code"')"
+  [ "$status" -eq 0 ]
+  printf 'feat: x\n\nCo-authored-by: Bot <noreply@anthropic.com>\n' > "$REPO/msg.txt"
+  run_hook "$HOOK" "$(bash_json "git commit -F $REPO/msg.txt")"
+  [ "$status" -eq 0 ]
+  run_hook "$HOOK" "$(mcp_json mcp__plugin_yuno_github__push_files '{"message":"feat: x\n\nCo-Authored-By: A <a@b.c>"}')"
+  [ "$status" -eq 0 ]
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=0 lets push through with attributed unpushed commits" {
+  export HARNESS_ATTRIBUTION_GATE=0
+  git_commit -m "feat: sneaky" -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+  run_hook "$HOOK" "$(bash_json 'git push origin main')"
+  [ "$status" -eq 0 ]
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=0 still denies --no-verify, core.hooksPath and red gates" {
+  export HARNESS_ATTRIBUTION_GATE=0
+  for c in 'git commit --no-verify -m "x"' 'git push --no-verify origin main' 'git -c core.hooksPath=/dev/null commit -m x'; do
+    run_hook "$HOOK" "$(bash_json "$c")"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--no-verify"* ]]
+  done
+  red_gates
+  run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"boom"* ]]
+}
+
+@test "HARNESS_ATTRIBUTION_GATE=1 and an empty value keep denying attribution" {
+  for v in 1 ""; do
+    export HARNESS_ATTRIBUTION_GATE="$v"
+    run_hook "$HOOK" "$(bash_json 'git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"AI attribution"* ]]
   done
 }

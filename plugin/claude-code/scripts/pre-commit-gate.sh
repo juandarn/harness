@@ -66,10 +66,12 @@ if [ "$VERB" = push ] && [ -n "$ROOT" ]; then
   TEXT="$TEXT"$'\n'"$(git -C "$ROOT" log HEAD --not --remotes -n 100 --format=%B 2>/dev/null)"
 fi
 
-LOWER="$(printf '%s' "$TEXT" | tr '[:upper:]' '[:lower:]')"
-ATTR_RE='co-authored-by[[:space:]]*:|generated[[:space:]]+(with|by)[^[:alnum:]]*claude|noreply@anthropic\.com'
-if [[ "$LOWER" =~ $ATTR_RE ]]; then
-  hook_block "commit/push gate: message carries a Co-Authored-By trailer or AI attribution (\"${BASH_REMATCH[0]}\"). Remove it; commits are authored by the human."
+if [ "${HARNESS_ATTRIBUTION_GATE:-1}" != 0 ]; then
+  LOWER="$(printf '%s' "$TEXT" | tr '[:upper:]' '[:lower:]')"
+  ATTR_RE='co-authored-by[[:space:]]*:|generated[[:space:]]+(with|by)[^[:alnum:]]*claude|noreply@anthropic\.com'
+  if [[ "$LOWER" =~ $ATTR_RE ]]; then
+    hook_block "commit/push gate: message carries a Co-Authored-By trailer or AI attribution (\"${BASH_REMATCH[0]}\"). Remove it; commits are authored by the human."
+  fi
 fi
 
 [ -n "$ROOT" ] || exit 0
