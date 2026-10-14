@@ -5,7 +5,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/hook-lib.sh"
 
 INPUT="$(cat)"
-GIT='(^|[;&|(`{])[[:space:]]*((sudo|env|command|time|exec)[[:space:]]+)*git([[:space:]]+(-[cC][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+'
+GIT="${HOOK_CMD_PREFIX}git([[:space:]]+(-[cC][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+"
 COMMIT_RE="${GIT}commit([[:space:]]|\$)"
 PUSH_RE="${GIT}push([[:space:]]|\$)"
 

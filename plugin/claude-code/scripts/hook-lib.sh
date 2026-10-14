@@ -21,6 +21,12 @@ hook_read_json() {
   printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || hook_block "hook input is not valid JSON — blocking instead of guessing."
 }
 
+# Start of a shell command plus any wrappers: sudo/command/time/exec, `env` with options
+# (-u NAME, -i) and NAME=value assignments, and bare NAME=value assignments.
+HOOK_ASSIGN=$'[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|\'[^\']*\'|[^[:space:]]*)'
+HOOK_ENV_OPT="(-[uCS][[:space:]]+[^[:space:]]+|--(unset|chdir|split-string)[[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?|-[A-Za-z0-9]+|${HOOK_ASSIGN})"
+HOOK_CMD_PREFIX="(^|[;&|(\`{])[[:space:]]*((sudo|command|time|exec|${HOOK_ASSIGN}|env([[:space:]]+${HOOK_ENV_OPT})*)[[:space:]]+)*"
+
 hook_field() { printf '%s' "$INPUT" | jq -r "$1" 2>/dev/null; }
 
 hook_project_dir() {

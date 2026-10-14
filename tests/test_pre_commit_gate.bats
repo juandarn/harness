@@ -151,3 +151,40 @@ EOF
   run bash -c 'printf "%s" "$1" | /bin/bash "$2"' _ "$(bash_json 'git commit -m x')" "$HOOK"
   [ "$status" -eq 0 ]
 }
+
+@test "env-prefixed and assignment-prefixed git commit/push are recognized: --no-verify is denied" {
+  for c in 'env -u GITHUB_TOKEN git commit --no-verify -m x' 'FOO=bar git push --no-verify origin main' \
+    'env -i FOO=bar git commit --no-verify -m x' 'A=1 B="two words" git commit --no-verify -m x' \
+    'env --unset=GITHUB_TOKEN git push --no-verify' 'env -u GITHUB_TOKEN sudo git push --no-verify'; do
+    run_hook "$HOOK" "$(bash_json "$c")"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--no-verify"* ]]
+  done
+}
+
+@test "env-prefixed git commit with an attribution message is denied" {
+  run_hook "$HOOK" "$(bash_json 'env -u GITHUB_TOKEN git commit -m "feat: x
+
+Co-Authored-By: Someone <a@b.c>"')"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"AI attribution"* ]]
+}
+
+@test "env-prefixed and assignment-prefixed git runs the repo gates, also with -C and cd" {
+  red_gates
+  for c in 'env -u GITHUB_TOKEN git commit -m x' 'FOO=bar git push origin main' \
+    "env -u GITHUB_TOKEN git -C $REPO commit -m x" "cd $REPO && env -u GITHUB_TOKEN git commit -m x"; do
+    run_hook "$HOOK" "$(bash_json "$c" "$(mktemp -d)")"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"boom"* ]]
+  done
+}
+
+@test "env and assignment prefixes do not make non-commands look like commits" {
+  red_gates
+  for c in 'echo "env -u GITHUB_TOKEN git commit"' 'echo FOO=bar git commit' 'env -u GITHUB_TOKEN git status' \
+    'FOO=bar git log --oneline' 'env -u GITHUB_TOKEN gh pr create' 'FOO=git commit'; do
+    run_hook "$HOOK" "$(bash_json "$c")"
+    [ "$status" -eq 0 ]
+  done
+}
