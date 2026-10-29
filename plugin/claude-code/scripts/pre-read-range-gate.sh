@@ -4,6 +4,8 @@
 # later turn, so one 2k-line dump costs far more than a grep plus a 100-line slice.
 # An explicit limit is allowed through: the model can still read it all on purpose.
 # On by default (HARNESS_READ_GATE=0 turns it off); threshold via HARNESS_READ_MAX_LINES (default 400).
+# Subagents (hook input carries agent_id) are exempt: their context is discarded after the task
+# and Edit needs a full Read first. Only the main session is gated.
 # Fails closed on unparseable input or a missing jq.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/hook-lib.sh"
@@ -14,6 +16,9 @@ MAX="${HARNESS_READ_MAX_LINES:-400}"
 hook_read_json
 FILE="$(hook_field '.tool_input.file_path // empty')"
 LIMIT="$(hook_field '.tool_input.limit // empty')"
+# Subagents (agent_id set) read whole files freely: their context is thrown away
+# after the task, and Edit needs a full Read first.
+[ -z "$(hook_field '.agent_id // empty')" ] || exit 0
 [ -n "$FILE" ] && [ -z "$LIMIT" ] && [ -f "$FILE" ] || exit 0
 
 case "$FILE" in
