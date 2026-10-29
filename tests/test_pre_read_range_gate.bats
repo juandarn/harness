@@ -50,3 +50,14 @@ read_input() { jq -n --arg fp "$1" --argjson extra "${2:-{\}}" '{tool_input: ({f
   run bash -c "$(declare -f read_input); read_input '$DIR/nope.py' | '$HOOK'"; [ -z "$output" ]
   run bash -c "printf 'not json' | '$HOOK'"; [ "$status" -eq 2 ]
 }
+
+@test "allows a whole-file read of a large file from a subagent" {
+  run bash -c "$(declare -f read_input); read_input '$BIG' '{}' | jq '. + {agent_id:\"a1\"}' | '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "still denies a whole-file read of a large file without agent_id" {
+  run bash -c "$(declare -f read_input); read_input '$BIG' '{}' | jq '. + {session_id:\"s1\"}' | '$HOOK'"
+  [ "$(echo "$output" | jq -r .hookSpecificOutput.permissionDecision)" = "deny" ]
+}
