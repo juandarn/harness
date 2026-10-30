@@ -13,7 +13,29 @@ need() {
 ran=0
 run() { ran=1; echo "+ $*"; "$@" || exit 1; }
 
-if [ -f go.mod ]; then need go; run go test ./...; fi
+# Go: test only packages with changed .go files (staged, unstaged, unpushed commits).
+go_changed_pkgs() {
+  { git diff --cached --name-only; git diff --name-only; git log HEAD --not --remotes --name-only --format=; } 2>/dev/null |
+    while IFS= read -r f; do
+      case "$f" in *.go) [ -f "$f" ] && { d="$(dirname "$f")"; [ "$d" = . ] && echo . || echo "./$d"; } ;; esac
+    done | sort -u
+}
+
+go_gate() {
+  need go
+  ran=1
+  pkgs=()
+  while IFS= read -r p; do [ -n "$p" ] && pkgs+=("$p"); done < <(go_changed_pkgs)
+  if [ "${#pkgs[@]}" -eq 0 ]; then echo "no changed Go packages — skipping go test"; return 0; fi
+  echo "+ go test -count=1 -p 2 ${pkgs[*]}"
+  out="$(mktemp)"
+  if go test -count=1 -p 2 "${pkgs[@]}" >"$out" 2>&1; then rm -f "$out"; return 0; fi
+  grep -E -- '^(--- FAIL:|FAIL|panic:)' "$out" | head -n 15
+  rm -f "$out"
+  exit 1
+}
+
+if [ -f go.mod ]; then go_gate; fi
 
 if [ -f package.json ] && command -v jq >/dev/null 2>&1; then
   script="$(jq -r '.scripts.test // empty' package.json 2>/dev/null)"
