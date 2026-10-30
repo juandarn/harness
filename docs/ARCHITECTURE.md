@@ -31,7 +31,7 @@ and forces every code change through a reviewable, delegated step.
 Every hook is default-on and fails closed: a hook that cannot parse its input,
 or that needs `jq` / `python3` and cannot find it, blocks (exit 2) instead of
 skipping. Shared helpers live in `scripts/hook-lib.sh`. Runtime state and logs
-go under `${CLAUDE_PROJECT_DIR}/.harness/` (`state/`, `logs/`, `sdd/`).
+go under `${CLAUDE_PROJECT_DIR}/.harness/` (`state/`, `logs/`).
 
 - **Commit/push gate** (`pre-commit-gate.sh`; PreToolUse on Bash and on the
   GitHub MCP writes `push_files`, `create_or_update_file`,
@@ -39,20 +39,6 @@ go under `${CLAUDE_PROJECT_DIR}/.harness/` (`state/`, `logs/`, `sdd/`).
   (including heredocs, `-F` files and unpushed commits on push), `--no-verify`
   and `core.hooksPath` overrides, and any commit/push while the repo gates are
   red. Log: `.harness/logs/pre-commit-gate.log`.
-- **TDD order gate** (`pre-edit-tdd-gate.sh` + `post-bash-test-recorder.sh`):
-  the recorder appends every test-runner run and its exit code to
-  `.harness/state/<session_id>.jsonl` (PostToolUse and PostToolUseFailure).
-  Piped runs (`go test | tail`) that exit 0 but print a failure marker are recorded as exit 1.
-  Edits to production source are denied until that session has a failing run
-  (exit codes 126/127 and interrupts do not count). Tests, docs and config
-  paths are exempt.
-- **SDD artifact gate** (`pre-edit-sdd-gate.sh`): when `.harness/sdd/` holds an
-  active change (newest directory, `archive/` ignored) without a non-empty
-  `tasks.md`, source edits are denied.
-- **Delegation gate** (Edit/Write/MultiEdit/NotebookEdit, main session): denies
-  direct code edits in the orchestrator session. The only opt-out is a
-  per-repo `.harness-inline-ok` file; the `HARNESS_INLINE_OK` environment
-  variable no longer exists.
 - **Read gate** (`pre-read-range-gate.sh`): default on; `HARNESS_READ_GATE=0`
   disables it.
 - **Comment nag** (PostToolUse): blocks a comment run of 4 or more consecutive

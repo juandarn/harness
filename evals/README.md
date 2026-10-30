@@ -122,6 +122,8 @@ at the time, since the gate was never actually bypassing a genuine
 main-session call in either run; the grader was flagging the subagent's
 legitimate edit either way.
 
+> Note: `pre-edit-delegation-gate.sh` and the other pre-edit gates were later removed; this section is historical.
+
 ### Resolution: grader fixed, no bypass occurred in either run
 
 `grade-delegation-compliance.sh` now keys subagent detection off

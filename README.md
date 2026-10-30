@@ -1,7 +1,7 @@
 # harness
 
 Enforcement layer for AI-assisted development. Hooks, gates, and evals that
-make the workflow (SDD, strict TDD, subagent-only edits, review gate,
+make the workflow (SDD, strict TDD, review gate,
 live-test-before-PR) mandatory instead of advisory.
 
 ## Install
@@ -29,8 +29,7 @@ Fase 4 of 6:
 5. Knowledge layer
 6. Dogfooding
 
-Implemented: blocking, fail-closed hooks (commit/push gate, TDD order gate,
-SDD artifact gate, delegation gate, read gate, comment nag, Stop checklist
+Implemented: blocking, fail-closed hooks (commit/push gate, read gate, comment nag, Stop checklist
 with default gates and a 3-block cap), a subagent status line showing each subagent's model, three shipped skills, and
 eval suite structure (`claude plugin eval`, early access — not yet runnable
 on this account). Remaining: knowledge-layer repos (code-graph, repo-graph)
