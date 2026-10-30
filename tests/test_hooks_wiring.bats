@@ -22,16 +22,12 @@ HOOKS="$PLUGIN/hooks/hooks.json"
   jq -e '[.hooks.PreToolUse[] | select(.hooks[].command | endswith("pre-commit-gate.sh")) | .matcher] | any(test("push_files") and test("create_or_update_file") and test("merge_pull_request"))' "$HOOKS"
 }
 
-@test "edit gates cover Edit, Write and MultiEdit: delegation, TDD order and SDD artifacts" {
-  for script in pre-edit-delegation-gate.sh pre-edit-tdd-gate.sh pre-edit-sdd-gate.sh; do
-    jq -e --arg s "$script" '[.hooks.PreToolUse[] | select(.hooks[].command | endswith($s)) | .matcher] | any(test("Edit") and test("Write") and test("MultiEdit"))' "$HOOKS"
-  done
+@test "no pre-edit gate is wired: Edit and Write are never blocked by a hook" {
+  ! jq -e '[.hooks.PreToolUse[] | select(.matcher | test("Edit|Write"))] | length > 0' "$HOOKS"
 }
 
-@test "read gate, test recorder (success and failure events), comment nag and Stop are wired" {
+@test "read gate, comment nag and Stop are wired" {
   jq -e '[.hooks.PreToolUse[] | select(.matcher == "Read") | .hooks[].command] | any(endswith("pre-read-range-gate.sh"))' "$HOOKS"
-  jq -e '[.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[].command] | any(endswith("post-bash-test-recorder.sh"))' "$HOOKS"
-  jq -e '[.hooks.PostToolUseFailure[] | select(.matcher == "Bash") | .hooks[].command] | any(endswith("post-bash-test-recorder.sh"))' "$HOOKS"
   jq -e '[.hooks.PostToolUse[] | .hooks[].command] | any(endswith("post-edit-comment-nag.sh"))' "$HOOKS"
   jq -e '[.hooks.Stop[].hooks[].command] | any(endswith("stop-checklist.sh"))' "$HOOKS"
 }
