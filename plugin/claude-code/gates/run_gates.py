@@ -35,7 +35,7 @@ def main():
         else:
             blocked.append(name)
             print(f"  BLOCK  {name}")
-            for line in output.splitlines()[-4:]:
+            for line in output.splitlines()[-40:]:
                 print(f"           {line}")
     print()
     if blocked:
