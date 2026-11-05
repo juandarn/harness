@@ -100,10 +100,171 @@ teardown() {
 
 @test "quality gate: a python repo with ruff missing fails loud" {
   echo '[project]' > pyproject.toml
+  echo 'x = 1' > a.py
+  git add a.py
   FAKE="$(tool_path ruff)"
   run env -i HOME="$HOME" PATH="$FAKE" bash "$GATES/default-quality.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"GATE BROKEN"* && "$output" == *"ruff"* ]]
+}
+
+@test "quality gate: a python repo with no staged .py files has nothing to run" {
+  echo '[project]' > pyproject.toml
+  FAKE="$(tool_path ruff)"
+  run env -i HOME="$HOME" PATH="$FAKE" bash "$GATES/default-quality.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nothing to run"* ]]
+}
+
+need_ruff() { command -v ruff >/dev/null || skip "ruff not installed"; }
+ADAPTER="$BATS_TEST_DIRNAME/../plugin/claude-code/adapters/py/adapter.sh"
+
+py_base() {
+  printf 'import os\n\n\ndef f(a):\n    return a\n' > base.py
+  printf 'import sys\nx  =  1\n' > debt.py
+  git add base.py debt.py
+  git_commit -m init
+}
+
+@test "scoped quality: unformatted and lint-dirty files that are not staged pass" {
+  need_ruff
+  py_base
+  printf 'def g(a):\n    return a\n' > new.py
+  git add new.py
+  run bash "$ADAPTER" format new.py
+  [ "$status" -eq 0 ]
+  run bash "$ADAPTER" lint new.py
+  [ "$status" -eq 0 ]
+}
+
+@test "scoped quality: a new format or lint violation on a changed line blocks" {
+  need_ruff
+  py_base
+  printf 'def g( a ):\n    return a\n' > new.py
+  git add new.py
+  run bash "$ADAPTER" format new.py
+  [ "$status" -eq 1 ]
+  printf 'import json\n' > lint.py
+  git add lint.py
+  run bash "$ADAPTER" lint lint.py
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"F401"* ]]
+}
+
+@test "scoped quality: a pre-existing violation on an unchanged line of a touched file passes" {
+  need_ruff
+  py_base
+  printf 'import sys\nx  =  1\n\n\ndef g(a):\n    return a\n' > debt.py
+  git add debt.py
+  git_commit -m debt
+  printf '\n\ndef h(a):\n    return a\n' >> debt.py
+  git add debt.py
+  run bash "$ADAPTER" format debt.py
+  [ "$status" -eq 0 ]
+  run bash "$ADAPTER" lint debt.py
+  [ "$status" -eq 0 ]
+}
+
+@test "scoped duplication: repeated single lines pass; a copied 4+ line block in the change blocks" {
+  for i in 1 2 3 4 5 6; do printf 'def f%s(a):\n    return (\n        a + %s\n    )\n' "$i" "$i"; done > dupe.py
+  git add dupe.py
+  git_commit -m init
+  printf 'def g(a):\n    return (\n        a * 2\n    )\n' >> dupe.py
+  git add dupe.py
+  run bash "$ADAPTER" duplication dupe.py
+  [ "$status" -eq 0 ]
+  printf 'def h(a):\n    x = a + 1\n    y = x * 2\n    z = y - 3\n    return z\n' > one.py
+  git add one.py
+  git_commit -m two
+  printf 'def k(a):\n    x = a + 1\n    y = x * 2\n    z = y - 3\n    return z\n' >> one.py
+  git add one.py
+  run bash "$ADAPTER" duplication one.py
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"DRY gate"* ]]
+}
+
+@test "scoped security: an edited inner line of an old multiline SQL f-string passes; a new finding on a changed line blocks" {
+  command -v bandit >/dev/null || skip "bandit not installed"
+  printf 'def q(t):\n    return (\n        f"SELECT a "\n        f"FROM {t} "\n        f"WHERE x = 1"\n    )\n' > sql.py
+  git add sql.py
+  git_commit -m init
+  sed -i.bak 's/x = 1/x = 2/' sql.py && rm -f sql.py.bak
+  git add sql.py
+  run bash "$ADAPTER" security sql.py
+  [ "$status" -eq 0 ]
+  printf '\n\ndef r(t):\n    return f"SELECT b FROM {t}"\n' >> sql.py
+  git add sql.py
+  run bash "$ADAPTER" security sql.py
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"B608"* ]]
+}
+
+fake_py() {
+  mkdir -p "$1/bin"
+  printf '#!/usr/bin/env bash\n[ "$1" = -c ] && exit 0\necho "%s $*"\n' "$2" > "$1/bin/python"
+  chmod +x "$1/bin/python"
+}
+
+py_tests_repo() {
+  echo '[project]' > pyproject.toml
+  printf 'def f(): pass\n' > mod.py
+  printf 'def g(): pass\n' > other.py
+  printf 'import mod\n' > test_mod.py
+  printf 'import other\n' > test_other.py
+  git add -A
+  git_commit -m init
+  fake_py .venv FAKE
+}
+
+@test "python tests gate: only tests that reference a staged module run" {
+  py_tests_repo
+  echo '# touch' >> mod.py
+  git add mod.py
+  run bash "$GATES/default-tests.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"test_mod.py"* ]]
+  [[ "$output" != *"test_other.py"* ]]
+}
+
+@test "python tests gate: nothing affected passes without running pytest" {
+  py_tests_repo
+  echo doc > README.md
+  git add README.md
+  run bash "$GATES/default-tests.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no affected tests"* ]]
+  [[ "$output" != *"FAKE"* ]]
+}
+
+@test "python tests gate: a staged conftest.py runs the full suite" {
+  py_tests_repo
+  echo '# c' > conftest.py
+  git add conftest.py
+  run bash "$GATES/default-tests.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"FAKE -m pytest -q"* ]]
+  [[ "$output" != *"test_mod.py"* ]]
+}
+
+@test "python tests gate: ./.venv python wins over ./venv" {
+  py_tests_repo
+  fake_py venv VENV
+  echo '# touch' >> mod.py
+  git add mod.py
+  run bash "$GATES/default-tests.sh"
+  [[ "$output" == *"FAKE -m pytest"* ]]
+  rm -rf .venv
+  run bash "$GATES/default-tests.sh"
+  [[ "$output" == *"VENV -m pytest"* ]]
+}
+
+@test "python tests gate: GATE_DIFF_ARGS selects the change" {
+  py_tests_repo
+  echo '# touch' >> mod.py
+  git add mod.py
+  git_commit -m touch
+  run env GATE_DIFF_ARGS="HEAD~1 HEAD" bash "$GATES/default-tests.sh"
+  [[ "$output" == *"test_mod.py"* ]]
 }
 
 @test "lib.sh reads the pinned thresholds from harness.toolchain.yaml" {

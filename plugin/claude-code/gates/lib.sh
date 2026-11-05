@@ -25,3 +25,12 @@ manifest() { printf '%s/harness.toolchain.yaml' "$HARNESS_ROOT"; }
 threshold() {
   awk -v k="$1" '$1==k":" {print $2; exit}' "$(manifest)"
 }
+
+# py_interp -> the repo's own interpreter (.venv, then venv) before the system python3
+py_interp() {
+  local p
+  for p in ./.venv/bin/python ./venv/bin/python; do
+    [ -x "$p" ] && { printf '%s' "$p"; return; }
+  done
+  printf 'python3'
+}

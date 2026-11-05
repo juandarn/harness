@@ -71,11 +71,16 @@ go under `${CLAUDE_PROJECT_DIR}/.harness/` (`state/`, `logs/`, `sdd/`).
 `gates/default.gates.json` applies at commit time (`pre-commit-gate.sh`) to
 repos without their own `harness.gates.json`; the Stop hook never falls back
 to it. It defines: `tests` (auto-detects go, npm, gradle, mvn, cargo,
-pytest, bats; a detected runner with a missing tool blocks), `comment-restraint`
+pytest, bats; a detected runner with a missing tool blocks; go and pytest run
+only what the staged change affects, and a staged `conftest.py` or test config
+runs the full suite), `comment-restraint`
 (comment-nag over lines changed vs HEAD, not whole files) and `quality`
 (`gates/quality-pipeline.sh`: format, lint, test, coverage, duplication,
 security through `adapters/<stack>/adapter.sh`; only `py` ships today, other
-stacks report that no adapter applies). Thresholds are pinned in
+stacks report that no adapter applies). Gates judge only the staged change:
+`gates/changed_lines.py` defines it (files and changed lines of
+`git diff $GATE_DIFF_ARGS`, default `--cached`) and the py stages block only on
+findings on those lines, never on debt elsewhere in the repo. Thresholds are pinned in
 `harness.toolchain.yaml`; `bin/doctor.sh` lists missing tools, and a missing
 tool blocks the gate instead of skipping it. A repo overrides the defaults by
 shipping its own `harness.gates.json`; see `examples/money/` for a full one.
