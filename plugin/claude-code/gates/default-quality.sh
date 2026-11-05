@@ -17,4 +17,10 @@ if [ -z "$stack" ]; then
 fi
 
 [ -x "$ROOT/adapters/$stack/adapter.sh" ] || { echo "GATE BROKEN: adapter for '$stack' is missing" >&2; exit 1; }
-HARNESS_LANG="$stack" exec "$HERE/quality-pipeline.sh" .
+files=()
+while IFS= read -r f; do case "$f" in *.py) files+=("$f") ;; esac; done < <(python3 "$HERE/changed_lines.py" --files)
+if [ "${#files[@]}" -eq 0 ]; then
+  echo "quality: no python files staged — nothing to run"
+  exit 0
+fi
+HARNESS_LANG="$stack" exec "$HERE/quality-pipeline.sh" "${files[@]}"

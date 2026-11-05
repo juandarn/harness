@@ -17,7 +17,7 @@ run() { ran=1; echo "+ $*"; "$@" || exit 1; }
 # go.mod/go.sum/testdata (or no git) fall back to ./...; GO_GATE_DRY=1 prints the package list only.
 go_pkgs() {
   local files
-  files="$(git diff ${GO_GATE_DIFF_ARGS:---cached} --name-only --diff-filter=ACMR 2>/dev/null)" || { echo ./...; return; }
+  files="$(git diff ${GATE_DIFF_ARGS:---cached} --name-only --diff-filter=ACMR 2>/dev/null)" || { echo ./...; return; }
   if printf '%s\n' "$files" | rg -q '(^|/)(go\.mod|go\.sum)$|(^|/)testdata/'; then echo ./...; return; fi
   local dirs; dirs="$(printf '%s\n' "$files" | rg '\.go$' | xargs -n1 dirname 2>/dev/null | sort -u)"
   [ -n "$dirs" ] || return 0
@@ -65,13 +65,22 @@ elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then need gradle; run gradl
 if [ -f pom.xml ]; then need mvn; run mvn -q test; fi
 if [ -f Cargo.toml ]; then need cargo; run cargo test --quiet; fi
 
+# Python: full suite when test config changes; otherwise only staged tests plus tests naming a staged module.
 if [ -f pytest.ini ] || [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f tox.ini ] || [ -f setup.py ] || [ -f requirements.txt ]; then
   hit="$(find . \( -name .venv -o -name venv -o -name node_modules -o -name .git \) -prune -o \
     \( -name 'test_*.py' -o -name '*_test.py' \) -print -quit)"
   if [ -n "$hit" ]; then
     need python3
-    python3 -c 'import pytest' 2>/dev/null || { echo "GATE BROKEN: pytest is required (pip install pytest)." >&2; exit 1; }
-    run python3 -m pytest -q
+    HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PY="$(source "$HERE/lib.sh"; py_interp)"
+    "$PY" -c 'import pytest' 2>/dev/null || { echo "GATE BROKEN: pytest is required for $PY (pip install pytest)." >&2; exit 1; }
+    sel="$(python3 "$HERE/../adapters/py/select_tests.py")" || { echo "GATE BROKEN: could not compute the staged change." >&2; exit 1; }
+    if [ "$sel" = FULL ]; then run "$PY" -m pytest -q
+    elif [ -z "$sel" ]; then echo "python: no affected tests — nothing to run"
+    else
+      tgt=(); while IFS= read -r t; do tgt+=("$t"); done <<<"$sel"
+      run "$PY" -m pytest -q "${tgt[@]}"
+    fi
   fi
 fi
 
