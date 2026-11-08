@@ -12,7 +12,6 @@ assert_denied() {
   run_hook "$HOOK" "$(bash_input "$1")"
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | jq -r .hookSpecificOutput.permissionDecision)" = "deny" ]
-  echo "$output" | jq -r .hookSpecificOutput.permissionDecisionReason | grep -q "Edit or Write"
 }
 
 assert_allowed() {
@@ -59,4 +58,48 @@ assert_allowed() {
 @test "fails closed on invalid JSON" {
   run_hook "$HOOK" 'not json'
   [ "$status" -eq 2 ]
+}
+
+@test "denies python from stdin or a heredoc with a write marker (multi-line)" {
+  assert_denied $'python3 -I - "$HT" <<"PY"\nimport sys\np=sys.argv[1]\nopen(p,"w").write("x")\nPY'
+  assert_denied $'python3 - <<EOF\nfrom pathlib import Path\nPath("a.py").write_text("x")\nEOF'
+  assert_denied $'perl <<EOF\nopen(F,">a.pl")\nEOF\nsed -i s/a/b/ x'
+}
+
+@test "allows a read-only python heredoc" {
+  assert_allowed $'python3 - <<"PY"\nprint(1)\nPY'
+}
+
+@test "denies shell redirects into source files" {
+  assert_denied $'cat >> $T <<"EOF"\nx\nEOF'
+  assert_denied 'cat >> foo_test.go <<"EOF"'
+  assert_denied 'echo x > src/app.py'
+  assert_denied 'echo x >> web/a.tsx'
+  assert_denied 'printf x >a.sh'
+  assert_denied 'cat > tests/x.bats <<EOF'
+}
+
+@test "allows harmless redirects" {
+  assert_allowed 'go test ./... > /dev/null 2>&1'
+  assert_allowed 'cmd 2>/dev/null'
+  assert_allowed 'echo x > /tmp/x.txt'
+  assert_allowed 'echo x > /tmp/scratch/a.go'
+  assert_allowed 'echo x >> /private/tmp/claude/a.py'
+  assert_allowed 'cat >> /tmp/a.go <<"EOF"'
+}
+
+@test "main session deny message says to delegate to a Sonnet subagent" {
+  run_hook "$HOOK" "$(jq -n '{tool_input:{command:"echo x > a.go"}}')"
+  reason="$(echo "$output" | jq -r .hookSpecificOutput.permissionDecisionReason)"
+  [[ "$reason" == *"Delegate to a Sonnet subagent"* ]]
+  [[ "$reason" == *"Sonnet subagent"* ]]
+  [[ "$reason" == *"FAIL"* ]]
+}
+
+@test "subagent deny message says to use Edit/Write with test first" {
+  run_hook "$HOOK" "$(jq -n '{agent_id:"sub-1",tool_input:{command:"echo x > a.go"}}')"
+  reason="$(echo "$output" | jq -r .hookSpecificOutput.permissionDecisionReason)"
+  [[ "$reason" == *"Edit or Write"* ]]
+  [[ "$reason" == *"test"* ]]
+  [[ "$reason" != *"Sonnet"* ]]
 }

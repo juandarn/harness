@@ -40,6 +40,16 @@ record() { run_hook "$RECORDER" "$(bash_result_json "$@")"; [ "$status" -eq 0 ];
   [ "$status" -eq 2 ]
 }
 
+@test "main session block message tells it to delegate; subagent message does not" {
+  run_hook "$GATE" "$(edit_json "$REPO/src/app.py")"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"does not write code or tests through Bash"* ]]
+  [[ "$output" == *"Sonnet subagent"* ]]
+  run_hook "$GATE" "$(edit_json "$REPO/src/app.py" | jq '. + {agent_id: "sub-1"}')"
+  [ "$status" -eq 2 ]
+  [[ "$output" != *"Sonnet subagent"* ]]
+}
+
 @test "test, config and docs paths are exempt" {
   for f in tests/test_app.py src/app_test.go src/app.test.ts src/app.spec.js src/AppTest.kt \
            tests/conftest.py docs/guide.md README.md config.yaml package.json src/settings.toml \
