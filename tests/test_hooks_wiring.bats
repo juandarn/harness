@@ -28,6 +28,10 @@ HOOKS="$PLUGIN/hooks/hooks.json"
   done
 }
 
+@test "bash write gate is wired on Bash with a 5s timeout" {
+  jq -e '[.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.command | endswith("pre-bash-write-gate.sh")) | .timeout] == [5]' "$HOOKS"
+}
+
 @test "read gate, test recorder (success and failure events), comment nag and Stop are wired" {
   jq -e '[.hooks.PreToolUse[] | select(.matcher == "Read") | .hooks[].command] | any(endswith("pre-read-range-gate.sh"))' "$HOOKS"
   jq -e '[.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[].command] | any(endswith("post-bash-test-recorder.sh"))' "$HOOKS"
