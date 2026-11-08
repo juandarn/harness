@@ -50,6 +50,8 @@ either is missing. The default `quality` gate for Python repos also needs
   shape and writes `.harness/live-test.md` evidence.
 - **`review-gate`** — launches fresh-context transversal review via
   subagents and writes `.harness/review-report.md` evidence.
+- **`transversal-review`** — one fresh-context reviewer across a multi-PR
+  set for the contracts between PRs, then verify and fix its findings.
 
 ## Docs
 
