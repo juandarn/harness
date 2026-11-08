@@ -23,6 +23,10 @@ the hooks by surprise.
    The subagent prompt must say: outline the file (`code-nav` skill), read
    only the range you change, and list `gopls references` for every exported
    symbol you touch before editing it; fix all call sites in the same pass.
+   It must also say: write the test first, run only that spec file, watch it
+   FAIL, then edit with Edit/Write; never write source through `python -c`,
+   `sed -i` or `tee` (the Bash write gate denies them). Run only the test
+   files you touch, never the full suite.
 4. **Transversal review gate** — fresh-context review before PR. See the
    `review-gate` skill.
 5. **Docker live-test** — run the real service before PR, not just unit

@@ -21,4 +21,6 @@ if [ -s "$STATE" ] && jq -e -n '[inputs | select(.exit != 0 and .exit != 126 and
   exit 0
 fi
 
-hook_block "TDD gate: no failing test run recorded this session. Write the test first, run it and watch it FAIL (RED), then edit source: $FILE"
+MSG="TDD gate: no failing test run recorded this session. Write the test first, run it and watch it FAIL (RED), then edit source: $FILE"
+[ -n "$(hook_field '.agent_id // empty')" ] || MSG="$MSG. The main session does not write code or tests through Bash: delegate to a Sonnet subagent that writes the test first, watches it FAIL, then edits."
+hook_block "$MSG"
